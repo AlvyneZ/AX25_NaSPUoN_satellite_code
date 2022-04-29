@@ -23,7 +23,7 @@
     <ProjectGuid>{d004d2e8-1275-467d-8aed-8d90d42493f3}</ProjectGuid>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <Keyword>ManagedCProj</Keyword>
-    <RootNamespace>SatUI_AX25</RootNamespace>
+    <RootNamespace>SatUI</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -139,17 +139,37 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="MainForm.cpp" />
+    <ClCompile Include="AboutDialog.cpp" />
+    <ClCompile Include="IncomingTransfer.cpp" />
+    <ClCompile Include="MyForm.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MainForm.h">
+    <ClInclude Include="AboutDialog.h" />
+    <ClInclude Include="AX25Communication.h" />
+    <ClInclude Include="bitManipulation.h" />
+    <ClInclude Include="CommunicationsHandler.h" />
+    <ClInclude Include="fileOperations.h" />
+    <ClInclude Include="fileTransferClass.h" />
+    <ClInclude Include="IncomingTransfer.h" />
+    <ClInclude Include="Logger.h" />
+    <ClInclude Include="MainFormForwardDeclaration.h" />
+    <ClInclude Include="MyForm.h">
       <FileType>CppForm</FileType>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="MainForm.resx">
-      <DependentUpon>MainForm.h</DependentUpon>
+    <EmbeddedResource Include="AboutDialog.resx">
+      <SubType>Designer</SubType>
     </EmbeddedResource>
+    <EmbeddedResource Include="IncomingTransfer.resx">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MyForm.resx">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Icon.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
