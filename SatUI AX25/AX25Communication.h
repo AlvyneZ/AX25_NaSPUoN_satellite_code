@@ -29,11 +29,13 @@ uint64_t timeSinceEpochMillisec() {
 #define KISS_TYPE_CMD  0x06
 
 #define KISS_TNC_BUFFER_LIMIT 16384
+#define KISS_OUT_BUFFER_LIMIT 100
 
 namespace KISS {
 	std::vector<uint8_t> kissInBuffer;
 	std::vector< std::vector<uint8_t> > kissOutBuffer;
 	uint64_t kissTNCBufferSize;
+	bool awaitTNC = false;
 
 	std::map<uint64_t, std::vector<uint8_t> > HPAX25AwaitingACK;
 }
@@ -135,6 +137,10 @@ void SatUI::MyForm::kissDecapsulate(std::vector<uint8_t> & receivedFrame) {
 						KISS::kissTNCBufferSize += temp;
 					}
 				}
+				if (KISS::kissTNCBufferSize >= KISS_TNC_BUFFER_LIMIT)
+					KISS::awaitTNC = true;
+				else
+					KISS::awaitTNC = false;
 			}
 		}
 		break;
@@ -325,10 +331,11 @@ void SatUI::MyForm::sendAX25Frames() {
 	lck0.release();
 
 	//sending AX.25 packets that are in the Out Buffer
+	checkKissTNCBufferSize();
 	msclr::lock lck(kissOutMutex);
 	int index = 0;
 	for (; index < KISS::kissOutBuffer.size(); index++) {
-		if (KISS::kissTNCBufferSize >= KISS_TNC_BUFFER_LIMIT) {
+		if (KISS::awaitTNC) {
 			break;
 		}
 		sendSerial(KISS::kissOutBuffer[index]);

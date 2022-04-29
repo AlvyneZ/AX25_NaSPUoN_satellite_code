@@ -238,22 +238,13 @@ void SatUI::MyForm::uplinkTransfer(std::vector<uint8_t> AX25SatCallsignSSID, uin
 		pck = getPacket(&(CommsNaSPUoN::outgoingTransfers[tID]), i);
 		//msclr::lock lck(this->uplinkSendNextMutex);
 		sendRFPacket(AX25SatCallsignSSID, pck);
-		
-		/*lastFrameID = pck[4];
-		CommsNaSPUoN::uplinkSendNext[lastFrameID] = false;
-		lck.release();
-		for (int t = 0; ((CommsNaSPUoN::uplinkSendNext.count(lastFrameID)) && (t < 150)); t++) {
-			//Wait for transmit response for the last rf packet to come back before sending the next rf packet
-			System::Threading::Thread::CurrentThread->Sleep(1);*/
+
+		while (KISS::awaitTNC || (KISS::kissOutBuffer.size() > KISS_OUT_BUFFER_LIMIT)) {
 			if (this->backgroundWorker_Uplink->CancellationPending) {
 				e->Cancel = true;
 				return;
 			}
-		/*}
-		if (CommsNaSPUoN::uplinkSendNext.count(lastFrameID)) {
-			log("CommHndl -> Time out for transmit status return surpassed.");
-			CommsNaSPUoN::uplinkSendNext.erase(lastFrameID);
-		}*/
+		}
 
 		uplinkProgressBarUpdate((i * 100) / expectedPackets);
 	}
@@ -287,21 +278,12 @@ void SatUI::MyForm::downlinkPartRequestTransfer(std::vector<uint8_t> AX25SatCall
 			//msclr::lock lck(this->uplinkSendNextMutex);
 			sendRFPacket(AX25SatCallsignSSID, pck);
 
-			/*lastFrameID = pck[4];
-			CommsNaSPUoN::uplinkSendNext[lastFrameID] = false;
-			lck.release();
-			for (int t = 0; ((CommsNaSPUoN::uplinkSendNext.count(lastFrameID)) && (t < 150)); t++) {
-				//Wait for transmit response for the last rf packet to come back before sending the next rf packet
-				System::Threading::Thread::CurrentThread->Sleep(1);*/
+			while (KISS::awaitTNC || (KISS::kissOutBuffer.size() > KISS_OUT_BUFFER_LIMIT)) {
 				if (this->backgroundWorker_DownlinkPartRequest->CancellationPending) {
 					e->Cancel = true;
 					return;
 				}
-			/*}
-			if (CommsNaSPUoN::uplinkSendNext.count(lastFrameID)) {
-				log("CommHndl -> Time out for transmit status return surpassed.");
-				CommsNaSPUoN::uplinkSendNext.erase(lastFrameID);
-			}*/
+			}
 		}
 	}
 	pck.clear();
