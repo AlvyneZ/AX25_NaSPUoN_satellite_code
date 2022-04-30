@@ -9,7 +9,7 @@
 #include "fileTransferClass.h"
 #include "MainFormForwardDeclaration.h"
 #include "AboutDialog.h"
-#include "IncomingTransfer.h"
+#include "DownlinkTransfer.h"
 
 
 namespace SatUI {
@@ -49,7 +49,7 @@ namespace SatUI {
 			this->kissOutMutex = gcnew System::Object();
 			this->HPAX25Mutex = gcnew System::Object();
 			this->UIThreadID = System::Threading::Thread::CurrentThread->ManagedThreadId;
-			this->transferForms = gcnew cliext::map<uint16_t, IncomingTransfer^>();
+			this->transferForms = gcnew cliext::map<uint16_t, DownlinkTransfer^>();
 			//
 		}
 
@@ -123,7 +123,7 @@ namespace SatUI {
 			System::String^ satelliteCallsign;
 			uint8_t groundSSID;
 			System::String^ groundCallsign;
-			cliext::map<uint16_t, IncomingTransfer^>^ transferForms;
+			cliext::map<uint16_t, DownlinkTransfer^>^ transferForms;
 	private:
 		/// <summary>
 		/// Required designer variable.
@@ -1326,7 +1326,7 @@ private: System::Windows::Forms::Label^  label_AX25GS;
 					}
 
 					//Opening the new form to show the progress of the downlink
-					transferForms[tID] = gcnew IncomingTransfer;
+					transferForms[tID] = gcnew DownlinkTransfer;
 					transferForms[tID]->transferID = tID;
 					transferForms[tID]->textBox_transferID->Text = tID.ToString();
 					transferForms[tID]->textBox_filename->Text = fileToDownlink;
@@ -1410,7 +1410,7 @@ private: System::Windows::Forms::Label^  label_AX25GS;
 			}
 };
 
-System::Void IncomingTransfer::IncomingTransfer_FormClosing(System::Object^  sender, System::Windows::Forms::FormClosingEventArgs^  e) {
+System::Void DownlinkTransfer::DownlinkTransfer_FormClosing(System::Object^  sender, System::Windows::Forms::FormClosingEventArgs^  e) {
 	uint16_t tID = this->transferID;
 	if (CommsNaSPUoN::incomingTransfers.count(tID)) {
 		std::vector<uint8_t> payload;

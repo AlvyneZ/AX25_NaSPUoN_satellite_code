@@ -36,13 +36,13 @@
     <ClInclude Include="fileTransferClass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="IncomingTransfer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Logger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="MainFormForwardDeclaration.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DownlinkTransfer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -50,10 +50,10 @@
     <EmbeddedResource Include="AboutDialog.resx">
       <Filter>Header Files</Filter>
     </EmbeddedResource>
-    <EmbeddedResource Include="IncomingTransfer.resx">
+    <EmbeddedResource Include="MyForm.resx">
       <Filter>Header Files</Filter>
     </EmbeddedResource>
-    <EmbeddedResource Include="MyForm.resx">
+    <EmbeddedResource Include="DownlinkTransfer.resx">
       <Filter>Header Files</Filter>
     </EmbeddedResource>
   </ItemGroup>
@@ -64,7 +64,7 @@
     <ClCompile Include="AboutDialog.cpp">
       <Filter>Header Files</Filter>
     </ClCompile>
-    <ClCompile Include="IncomingTransfer.cpp">
+    <ClCompile Include="DownlinkTransfer.cpp">
       <Filter>Header Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -11,12 +11,12 @@ namespace SatUI {
 	using namespace System::Drawing;
 
 	/// <summary>
-	/// Summary for IncomingTransfer
+	/// Summary for DownlinkTransfer
 	/// </summary>
-	public ref class IncomingTransfer : public System::Windows::Forms::Form
+	public ref class DownlinkTransfer : public System::Windows::Forms::Form
 	{
 	public:
-		IncomingTransfer(void)
+		DownlinkTransfer(void)
 		{
 			InitializeComponent();
 			//
@@ -28,7 +28,7 @@ namespace SatUI {
 		/// <summary>
 		/// Clean up any resources being used.
 		/// </summary>
-		~IncomingTransfer()
+		~DownlinkTransfer()
 		{
 			if (components)
 			{
@@ -124,9 +124,12 @@ namespace SatUI {
 			this->button_downlinkCancel->TabIndex = 24;
 			this->button_downlinkCancel->Text = L"Cancel";
 			this->button_downlinkCancel->UseVisualStyleBackColor = false;
-			this->button_downlinkCancel->Click += gcnew System::EventHandler(this, &IncomingTransfer::button_downlinkCancel_Click);
+			this->button_downlinkCancel->Click += gcnew System::EventHandler(this, &DownlinkTransfer::button_downlinkCancel_Click);
+			//Disabling the downlinkCancel button
+			this->button_downlinkCancel->Enabled = false;
+			this->button_downlinkCancel->Visible = false;
 			// 
-			// IncomingTransfer
+			// DownlinkTransfer
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
@@ -137,11 +140,13 @@ namespace SatUI {
 			this->Controls->Add(this->label_filename);
 			this->Controls->Add(this->textBox_transferID);
 			this->Controls->Add(this->label_transferID);
-			this->Name = L"IncomingTransfer";
-			this->Text = L"IncomingTransfer";
-			this->FormClosing += gcnew System::Windows::Forms::FormClosingEventHandler(this, &IncomingTransfer::IncomingTransfer_FormClosing);
+			this->Name = L"DownlinkTransfer";
+			this->Text = L"DownlinkTransfer";
+			this->FormClosing += gcnew System::Windows::Forms::FormClosingEventHandler(this, &DownlinkTransfer::DownlinkTransfer_FormClosing);
 			this->ResumeLayout(false);
 			this->PerformLayout();
+			//Disabling the Close, minimise and maximise buttons
+			this->ControlBox = false;
 
 		}
 #pragma endregion
@@ -149,6 +154,6 @@ namespace SatUI {
 			this->Close();
 		}
 
-		private: System::Void IncomingTransfer_FormClosing(System::Object^  sender, System::Windows::Forms::FormClosingEventArgs^  e);
+		private: System::Void DownlinkTransfer_FormClosing(System::Object^  sender, System::Windows::Forms::FormClosingEventArgs^  e);
 };
 }

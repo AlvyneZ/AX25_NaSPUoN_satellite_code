@@ -720,7 +720,7 @@ void SatUI::MyForm::cancelAllTransfers() {
 	}
 	log("CommHndl -> All incomplete transfers have been deleted successfully.");
 
-	for (cliext::map<uint16_t, IncomingTransfer^>::iterator it = transferForms->begin(); it != transferForms->end(); it++) {
+	for (cliext::map<uint16_t, DownlinkTransfer^>::iterator it = transferForms->begin(); it != transferForms->end(); it++) {
 		transferForms->erase(it);
 	}
 	uplinkComplete(false);

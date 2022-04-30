@@ -1,4 +1,4 @@
 
 #include "MainFormForwardDeclaration.h"
-#include "IncomingTransfer.h"
+#include "DownlinkTransfer.h"
 

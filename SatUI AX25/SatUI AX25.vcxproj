@@ -140,17 +140,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AboutDialog.cpp" />
-    <ClCompile Include="IncomingTransfer.cpp" />
+    <ClCompile Include="DownlinkTransfer.cpp" />
     <ClCompile Include="MyForm.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AboutDialog.h" />
+    <ClInclude Include="AboutDialog.h">
+      <FileType>CppForm</FileType>
+    </ClInclude>
     <ClInclude Include="AX25Communication.h" />
     <ClInclude Include="bitManipulation.h" />
     <ClInclude Include="CommunicationsHandler.h" />
     <ClInclude Include="fileOperations.h" />
     <ClInclude Include="fileTransferClass.h" />
-    <ClInclude Include="IncomingTransfer.h" />
+    <ClInclude Include="DownlinkTransfer.h">
+      <FileType>CppForm</FileType>
+    </ClInclude>
     <ClInclude Include="Logger.h" />
     <ClInclude Include="MainFormForwardDeclaration.h" />
     <ClInclude Include="MyForm.h">
@@ -161,7 +165,7 @@
     <EmbeddedResource Include="AboutDialog.resx">
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="IncomingTransfer.resx">
+    <EmbeddedResource Include="DownlinkTransfer.resx">
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="MyForm.resx">
