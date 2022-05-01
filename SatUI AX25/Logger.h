@@ -10,7 +10,15 @@
 
 
 #include <ctime>
+#include <fstream>
 #include <string>
+
+#define LOG_FILE_PREFIX "log_"
+
+
+namespace LOGGER {
+	int savedSize = 0;
+}
 
 
 std::string generateTimestamp() {
@@ -45,13 +53,18 @@ void SatUI::MyForm::log(std::string message) {
 		if (backgroundWorker_Receiver->IsBusy)
 			this->backgroundWorker_Receiver->ReportProgress(1, messageSys);
 	}
-	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UplinkThreadID) {
-		if (backgroundWorker_Uplink->IsBusy)
-			this->backgroundWorker_Uplink->ReportProgress(1, messageSys);
+	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UplinkPtRqThreadID) {
+		if (backgroundWorker_UplinkPartRequest->IsBusy)
+			this->backgroundWorker_UplinkPartRequest->ReportProgress(1, messageSys);
 	}
-	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->DownlinkPtRqThreadID) {
-		if (backgroundWorker_DownlinkPartRequest->IsBusy)
-			this->backgroundWorker_DownlinkPartRequest->ReportProgress(1, messageSys);
+	else {
+		int thread = System::Threading::Thread::CurrentThread->ManagedThreadId;
+		for (cliext::map<uint16_t, int>::iterator it = DownlinkThreadID->begin(); it != DownlinkThreadID->end(); it++) {
+			if (thread == it->second) {
+				if (backgroundWorker_Downlink[it->first]->IsBusy)
+					return this->backgroundWorker_Downlink[it->first]->ReportProgress(1, messageSys);
+			}
+		}
 	}
 }
 
@@ -66,13 +79,47 @@ void SatUI::MyForm::logErr(std::string message) {
 		if (backgroundWorker_Receiver->IsBusy)
 			this->backgroundWorker_Receiver->ReportProgress(2, messageSys);
 	}
-	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UplinkThreadID) {
-		if (backgroundWorker_Uplink->IsBusy)
-			this->backgroundWorker_Uplink->ReportProgress(2, messageSys);
+	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UplinkPtRqThreadID) {
+		if (backgroundWorker_UplinkPartRequest->IsBusy)
+			this->backgroundWorker_UplinkPartRequest->ReportProgress(2, messageSys);
 	}
-	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->DownlinkPtRqThreadID) {
-		if (backgroundWorker_DownlinkPartRequest->IsBusy)
-			this->backgroundWorker_DownlinkPartRequest->ReportProgress(2, messageSys);
+	else {
+		int thread = System::Threading::Thread::CurrentThread->ManagedThreadId;
+		for (cliext::map<uint16_t, int>::iterator it = DownlinkThreadID->begin(); it != DownlinkThreadID->end(); it++) {
+			if (thread == it->second) {
+				if (backgroundWorker_Downlink[it->first]->IsBusy)
+					return this->backgroundWorker_Downlink[it->first]->ReportProgress(2, messageSys);
+			}
+		}
+	}
+}
+
+void SatUI::MyForm::logFileSave() {
+	if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UIThreadID) {
+		System::String^ logs = this->richTextBox_output->Text;
+		std::string stdLogs = msclr::interop::marshal_as<std::string>(logs);
+		std::vector<uint8_t> file(stdLogs.begin() + LOGGER::savedSize, stdLogs.end());
+
+		std::string fileNameWithPath = getDownlinkSatFilesLocation() + "\\lf\\" + LOG_FILE_PREFIX;
+		fileNameWithPath += generateTimestamp() + ".txt";
+
+		if (checkIfFileExists(fileNameWithPath)) {
+			logErr("The file specified for output '" + fileNameWithPath + "' already exists.");
+			return;
+		}
+		log("Beginning Logs output to '" + fileNameWithPath + "'.");
+		std::ofstream output_file;
+		output_file.open(fileNameWithPath.c_str(), std::ios::binary | std::ios::out | std::ios::app);
+		for (unsigned int i = 0; i < file.size(); i++) {
+			output_file << file[i];
+		}
+		log("Logs Output to '" + fileNameWithPath + "' Complete.");
+		output_file.close();
+		LOGGER::savedSize = stdLogs.size();
+	}
+	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->receiverThreadID) {
+		if (backgroundWorker_Receiver->IsBusy)
+			this->backgroundWorker_Receiver->ReportProgress(9);
 	}
 }
 

@@ -20,6 +20,10 @@
 #include "fileTransferClass.h"
 
 
+#define HK_LOG_FILE "hk_data.txt"
+#define SAT_CONFIG_FILE_NAME "sat_settings.cfg"
+
+
 /*-------------------Packets Identifications---------------
 
 	Data Transfer:
@@ -62,10 +66,7 @@ void SatUI::MyForm::addPacket(FileTransfer * ft, std::vector<uint8_t> & packet) 
 				ft->packets[pckIndex] = packet;
 				if (!ft->receivedPacket[pckIndex]) {
 					ft->packetsReceived++;
-					array<uint16_t>^ args = gcnew array<uint16_t>(2);
-					args[0] = (ft->packetsReceived * 100) / ft->expectedPackets;
-					args[1] = tID;
-					downlinkProgressBarUpdate(args);
+					adjuplinkProgressBarUpdate((ft->packetsReceived * 100) / ft->expectedPackets);
 				}
 				ft->receivedPacket[pckIndex] = true;
 			}
@@ -103,24 +104,21 @@ std::vector<uint8_t> SatUI::MyForm::getPacket(FileTransfer * ft, uint32_t index)
 	}
 }
 
-bool SatUI::MyForm::transferComplete(uint16_t tID, std::vector<uint8_t> AX25SatCallsignSSID) {
+bool SatUI::MyForm::transferComplete(uint16_t tID, std::vector<uint8_t> AX25GSCallsignSSID) {
 	///log("Transfer Complete Called with: rcv=" + std::to_string(ft->packetsReceived) + " and expctd=" + std::to_string(ft->expectedPackets));
 	if ((CommsNaSPUoN::incomingTransfers[tID].packetsReceived) >= (CommsNaSPUoN::incomingTransfers[tID].expectedPackets)) {
-		std::string outputPath = getDownlinkSavelocation();
+		std::string outputPath = getUplinkSaveLocation();
 		outputPath += '\\';
-		CommsNaSPUoN::incomingTransfers[tID].fileName[2] = '\\'; //Since the sat(Linux) uses forward-slashes but windows uses back-slashes
+		//CommsNaSPUoN::incomingTransfers[tID].fileName[2] = '\\'; //Since the sat(Linux) uses forward-slashes but windows uses back-slashes
 		outputPath += CommsNaSPUoN::incomingTransfers[tID].fileName;
 		compilePackets(outputPath, CommsNaSPUoN::incomingTransfers[tID].packets);
-		array<uint16_t>^ args = gcnew array<uint16_t>(2);
-		args[0] = 100;
-		args[1] = tID;
-		downlinkProgressBarUpdate(args);
+		adjuplinkProgressBarUpdate(100);
 		return true;
 	}
 	else {
-		if (backgroundWorker_DownlinkPartRequest->IsBusy) {
-			backgroundWorker_DownlinkPartRequest->CancelAsync();
-			log("CommHndl -> Cancelled downlink part request thread to allow for a new downlink part request transfer.");
+		if (backgroundWorker_UplinkPartRequest->IsBusy) {
+			backgroundWorker_UplinkPartRequest->CancelAsync();
+			log("CommHndl -> Cancelled uplink part request thread to allow for a new uplink part request transfer.");
 			//Stalling to allow the thread to stop
 			System::Threading::Thread::CurrentThread->Sleep(100);
 		}
@@ -128,14 +126,14 @@ bool SatUI::MyForm::transferComplete(uint16_t tID, std::vector<uint8_t> AX25SatC
 		args[1] = tID & 0x00ff;
 		args[0] = tID >> 8;
 		int index = 0;
-		for (; index < AX25SatCallsignSSID.size(); index++) {
-			args[2 + index] = AX25SatCallsignSSID[index];
+		for (; index < AX25GSCallsignSSID.size(); index++) {
+			args[2 + index] = AX25GSCallsignSSID[index];
 		}
 		for (; index < 7; index++) {
 			args[2 + index] = ';';
 		}
 
-		startBackgroundWorkerDownlinkPartRequest(args);
+		startBackgroundWorkerUplinkPartRequest(args);
 
 		return false;
 	}
@@ -180,21 +178,42 @@ FileTransfer SatUI::MyForm::initializeFileTransfer(bool incoming, std::vector<ui
 			(this->transferIDCount)++;
 			lck.release();
 
+			ft.fileName = getDownlinkSatFilesLocation();
 			ft.fileName = "";
 			for (unsigned int i = 3; i < initializerPacket.size(); i++)
 				ft.fileName += initializerPacket[i];
 
-			if (checkIfFileExists(ft.fileName)) {
-				std::vector<uint8_t> file = retrieveFileToTransfer(ft.fileName);
-				ft.fileSize = file.size();
+			if (ft.fileName[2] == '/') {
+				std::string location = "";
+				if ( ((ft.fileName[0] == 'l') && (ft.fileName[1] == 'r')) ||
+					((ft.fileName[0] == 'l') && (ft.fileName[1] == 'f')) ||
+					((ft.fileName[0] == 'i') && (ft.fileName[1] == 'm')) ||
+					((ft.fileName[0] == 'h') && (ft.fileName[1] == 'k'))) {
+					location = getDownlinkSatFilesLocation() + "\\";
 
-				ft.packets = transferOutPacketsConstruction(ft.transferID, ft.fileName, file);
-				ft.expectedPackets = ft.packets.size() - 1;
+					std::string fileWithPath = ft.fileName;
+					fileWithPath[2] = '\\';
+					fileWithPath.insert(fileWithPath.begin(), location.begin(), location.end());
 
-				ft.ready = true;
+					if (checkIfFileExists(fileWithPath)) {
+						std::vector<uint8_t> file = retrieveFileToTransfer(fileWithPath);
+						ft.fileSize = file.size();
+
+						ft.packets = transferOutPacketsConstruction(ft.transferID, ft.fileName, file);
+						ft.expectedPackets = ft.packets.size() - 1;
+
+						ft.ready = true;
+					}
+					else {
+						logErr("CommHndl -> Request to transfer out '" + ft.fileName + "' denied since file cannot be found.");
+					}
+				}
+				else {
+					logErr("CommHndl -> Request to transfer out '" + ft.fileName + "' denied. File must have lr/, lf/, im/ or hk/prefix.");
+				}
 			}
 			else {
-				logErr("CommHndl -> Request to transfer out '" + ft.fileName + "' denied since file cannot be found.");
+				logErr("CommHndl -> Request to transfer out '" + ft.fileName + "' denied. File must have lr/, lf/, im/ or hk/ prefix.");
 			}
 		}
 		else {
@@ -219,34 +238,38 @@ FileTransfer SatUI::MyForm::initializeFileTransfer(bool incoming, std::vector<ui
 }*/
 
 
-void SatUI::MyForm::sendRFPacket(std::vector<uint8_t> AX25SatCallsignSSID, std::vector<uint8_t> & packet) {
+void SatUI::MyForm::sendRFPacket(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & packet) {
 	//This function sends an RF packet with either or both the XBee and/or StenSat
 	if (packet.size() > 1) {
-		sendRFPacketAX25(AX25SatCallsignSSID, packet);
+		sendRFPacketAX25(AX25GSCallsignSSID, packet);
 	}
 	else {
 		logErr("CommHndl -> Attempt to send an Rf packet of size: " + std::to_string(packet.size()) + " denied.");
 	}
 }
 
-void SatUI::MyForm::uplinkTransfer(std::vector<uint8_t> AX25SatCallsignSSID, uint16_t tID, System::ComponentModel::DoWorkEventArgs^  e) {
+void SatUI::MyForm::downlinkTransfer(std::vector<uint8_t> AX25GSCallsignSSID, uint16_t tID, System::ComponentModel::DoWorkEventArgs^  e) {
 	log("CommHndl -> Beginning outgoing transfer of tID " + std::to_string(tID) + ".");
 	std::vector<uint8_t> pck;
 	uint32_t expectedPackets = CommsNaSPUoN::outgoingTransfers[tID].expectedPackets;
 	uint8_t lastFrameID;
+
+	array<uint16_t>^ args = gcnew array<uint16_t>(2);
+	args[1] = tID;
+
 	for (uint32_t i = 0; i < expectedPackets; i++) {
 		pck = getPacket(&(CommsNaSPUoN::outgoingTransfers[tID]), i);
-		//msclr::lock lck(this->uplinkSendNextMutex);
-		sendRFPacket(AX25SatCallsignSSID, pck);
+		sendRFPacket(AX25GSCallsignSSID, pck);
 
 		while (KISS::awaitTNC || (KISS::kissOutBuffer.size() > KISS_OUT_BUFFER_LIMIT)) {
-			if (this->backgroundWorker_Uplink->CancellationPending) {
+			if (this->backgroundWorker_Downlink[tID]->CancellationPending) {
 				e->Cancel = true;
 				return;
 			}
 		}
 
-		uplinkProgressBarUpdate((i * 100) / expectedPackets);
+		args[0] = (i * 100) / expectedPackets;
+		adjdownlinkProgressBarUpdate(args);
 	}
 
 	pck.clear();
@@ -254,17 +277,19 @@ void SatUI::MyForm::uplinkTransfer(std::vector<uint8_t> AX25SatCallsignSSID, uin
 	pck.push_back('C');
 	insertSixteenBitIntInEightBitVector(pck, pck.end(), tID);
 	pck.push_back(0x01);
-	sendRFPacket(AX25SatCallsignSSID, pck);
-	uplinkProgressBarUpdate(100);
+	sendRFPacket(AX25GSCallsignSSID, pck);
+
+	args[0] = 100;
+	adjdownlinkProgressBarUpdate(args);
 }
 
-void SatUI::MyForm::downlinkPartRequestTransfer(std::vector<uint8_t> AX25SatCallsignSSID, uint16_t tID, System::ComponentModel::DoWorkEventArgs^  e) {
+void SatUI::MyForm::uplinkPartRequestTransfer(std::vector<uint8_t> AX25GSCallsignSSID, uint16_t tID, System::ComponentModel::DoWorkEventArgs^  e) {
 
 	uint32_t expectedPackets = CommsNaSPUoN::incomingTransfers[tID].expectedPackets;
 	std::vector<uint8_t> pck;
 	uint8_t lastFrameID;
 	for (uint32_t i = 0; i < expectedPackets; i++) {
-		if (this->backgroundWorker_DownlinkPartRequest->CancellationPending) {
+		if (this->backgroundWorker_UplinkPartRequest->CancellationPending) {
 			e->Cancel = true;
 			return;
 		}
@@ -275,11 +300,10 @@ void SatUI::MyForm::downlinkPartRequestTransfer(std::vector<uint8_t> AX25SatCall
 			pck.push_back(0x0F);
 			insertSixteenBitIntInEightBitVector(pck, pck.end(), tID);
 			insertThirtyTwoBitIntInEightBitVector(pck, pck.end(), i);
-			//msclr::lock lck(this->uplinkSendNextMutex);
-			sendRFPacket(AX25SatCallsignSSID, pck);
+			sendRFPacket(AX25GSCallsignSSID, pck);
 
 			while (KISS::awaitTNC || (KISS::kissOutBuffer.size() > KISS_OUT_BUFFER_LIMIT)) {
-				if (this->backgroundWorker_DownlinkPartRequest->CancellationPending) {
+				if (this->backgroundWorker_UplinkPartRequest->CancellationPending) {
 					e->Cancel = true;
 					return;
 				}
@@ -291,10 +315,10 @@ void SatUI::MyForm::downlinkPartRequestTransfer(std::vector<uint8_t> AX25SatCall
 	pck.push_back('C');
 	insertSixteenBitIntInEightBitVector(pck, pck.end(), tID);
 	pck.push_back(0x02);
-	sendRFPacket(AX25SatCallsignSSID, pck);
+	sendRFPacket(AX25GSCallsignSSID, pck);
 }
 
-void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignSSID, std::vector<uint8_t> & payload) {
+void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & payload) {
 	try {
 		//To prevent the receive thread closing because of an error in processing a payload
 		if (payload.size() < 2) //To avoid accessing outside vector size
@@ -310,7 +334,7 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 
 					if (newFileTransfer.ready) {
 						CommsNaSPUoN::outgoingTransfers[newFileTransfer.transferID] = newFileTransfer;
-						sendRFPacket(AX25SatCallsignSSID, getInitializationPacket(&newFileTransfer));
+						sendRFPacket(AX25GSCallsignSSID, getInitializationPacket(&newFileTransfer));
 						log("CommHndl -> Transfer request received and accepted.");
 					}
 				}
@@ -320,7 +344,10 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 
 					if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
 						uint32_t received = getThirtyTwoBitIntFromEightBitVector(payload, 5);
-						uplinkProgressBarUpdate((received * 100) / CommsNaSPUoN::outgoingTransfers[tID].expectedPackets);
+						array<uint16_t>^ args = gcnew array<uint16_t>(2);
+						args[0] = (received * 100) / CommsNaSPUoN::outgoingTransfers[tID].expectedPackets;
+						args[1] = tID;
+						adjdownlinkProgressBarUpdate(args);
 					}
 					else {
 						logErr("CommHndl -> Invalid progress report for transfer for non-existent tID " + std::to_string(tID) + ".");
@@ -334,7 +361,7 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 
 					if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
 						uint32_t pckIndex = getThirtyTwoBitIntFromEightBitVector(payload, 5);
-						sendRFPacket(AX25SatCallsignSSID, getPacket(&(CommsNaSPUoN::outgoingTransfers[tID]), pckIndex));
+						sendRFPacket(AX25GSCallsignSSID, getPacket(&(CommsNaSPUoN::outgoingTransfers[tID]), pckIndex));
 					}
 					else {
 						logErr("CommHndl -> Invalid Request for a packet transfer for non-existent tID " + std::to_string(tID) + ".");
@@ -363,15 +390,15 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 					CommsNaSPUoN::incomingTransfers[tID] = newFileTransfer;
 					currentDownlinkTransferID = tID;
 					std::string expPcks = " Expecting " + std::to_string(newFileTransfer.expectedPackets) + " packets.";
-					log("CommHndl -> Intitializer packet for downlink transfer tID: " + std::to_string(tID) + " accepted." + expPcks);
-					downlinkStarting(tID);
+					log("CommHndl -> Intitializer packet for uplink transfer tID: " + std::to_string(tID) + " accepted." + expPcks);
+					uplinkStarting(tID);
 				}
 				else {
 					pck.push_back(0x01);
-					log("CommHndl -> Intitializer packet for downlink transfer tID: " + std::to_string(tID) + " rejected.");
+					log("CommHndl -> Intitializer packet for uplink transfer tID: " + std::to_string(tID) + " rejected.");
 				}
 
-				sendRFPacket(AX25SatCallsignSSID, pck);
+				sendRFPacket(AX25GSCallsignSSID, pck);
 			}
 			else if (payload[1] == 'B') {
 				//Request to begin transfering packets of a file
@@ -379,9 +406,9 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 					return;
 				uint16_t tID = getSixteenBitIntFromEightBitVector(payload, 2);
 				if (payload[4] == 0x00) {
-					if (backgroundWorker_Uplink->IsBusy) {
-						backgroundWorker_Uplink->CancelAsync();
-						log("CommHndl -> Cancelled uplink thread to allow for a new uplink transfer.");
+					if ((backgroundWorker_Downlink->count(tID)) && (backgroundWorker_Downlink[tID]->IsBusy)) {
+						backgroundWorker_Downlink[tID]->CancelAsync();
+						log("CommHndl -> Cancelled downlink thread to allow for a new downlink transfer.");
 						//Stalling to allow the thread to stop
 						System::Threading::Thread::CurrentThread->Sleep(100);
 					}
@@ -389,14 +416,14 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 					args[1] = tID & 0x00ff;
 					args[0] = tID >> 8;
 					int index = 0;
-					for (; index < AX25SatCallsignSSID.size(); index++) {
-						args[2 + index] = AX25SatCallsignSSID[index];
+					for (; index < AX25GSCallsignSSID.size(); index++) {
+						args[2 + index] = AX25GSCallsignSSID[index];
 					}
 					for (; index < 7; index++) {
 						args[2 + index] = ';';
 					}
 
-					startBackgroundWorkerUplink(args);
+					startBackgroundWorkerDownlink(args);
 				}
 				else {
 					if (CommsNaSPUoN::outgoingTransfers.count(tID))
@@ -422,21 +449,22 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 					return;
 				uint16_t tID = getSixteenBitIntFromEightBitVector(payload, 2);
 				if ((payload[4] == 0x01) && (CommsNaSPUoN::incomingTransfers.count(tID))) {
-					bool complete = transferComplete(tID, AX25SatCallsignSSID);
+					bool complete = transferComplete(tID, AX25GSCallsignSSID);
 					if (complete) {
 						CommsNaSPUoN::incomingTransfers.erase(tID);
-						downlinkComplete(tID);
+						adjdownlinkComplete(tID);
 						std::vector<uint8_t> pck;
 						pck.push_back('T');
 						pck.push_back('C');
 						insertSixteenBitIntInEightBitVector(pck, pck.end(), tID);
 						pck.push_back(0x00);
-						sendRFPacket(AX25SatCallsignSSID, pck);
+						sendRFPacket(AX25GSCallsignSSID, pck);
 						log("CommHndl -> Successfully Completed incoming transfer of tID " + std::to_string(tID) + ".");
 					}
 				}
 				else if ((payload[4] == 0x00) && (CommsNaSPUoN::outgoingTransfers.count(tID))) {
 					CommsNaSPUoN::outgoingTransfers.erase(tID);
+					adjuplinkComplete(true);
 					log("CommHndl -> Successfully Completed outgoing transfer of tID " + std::to_string(tID) + ".");
 				}
 				else if ((payload[4] == 0x02) && (CommsNaSPUoN::outgoingTransfers.count(tID))) {
@@ -445,7 +473,7 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 					pck.push_back('C');
 					insertSixteenBitIntInEightBitVector(pck, pck.end(), tID);
 					pck.push_back(0x01);
-					sendRFPacket(AX25SatCallsignSSID, pck);
+					sendRFPacket(AX25GSCallsignSSID, pck);
 				}
 				else {
 					std::string outOrIn = (payload[4] == 0x01) ? "Incoming" : ((payload[4] == 0x00) || (payload[4] == 0x02)) ? "Outgoing" : "[Direction Unknown]";
@@ -453,147 +481,250 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25SatCallsignS
 				}
 			}
 			else if (payload[1] == 'Z') {
-				//Cancel Transfer response
-				if (payload.size() < 4) //To avoid accessing outside vector size
+				//Cancel Transfer
+				if (payload.size() < 3) //To avoid accessing outside vector size
 					return;
 				if (payload[2] == 0xFF) {
-					//Cancel all incomplete transfers response
-					if (payload[3] == 0x00)
-						log("CommHndl -> Satelitte has successfully deleted all incomplete transfers.");
-					else if (payload[3] == 0x01)
-						log("CommHndl -> Satelitte encountered an error when attempting to delete all incomplete transfers.");
+					//Cancel all incomplete transfers
+					cancelAllTransfers(AX25GSCallsignSSID);
 				}
-				if (payload[2] == 0x00) {
-					//Cancel a specific incomplete transfer response
-					if (payload.size() < 7) //To avoid accessing outside vector size
+				else if (payload[2] == 0x00) {
+					//Cancel a specific incomplete transfer
+					if (payload.size() < 6) //To avoid accessing outside vector size
 						return;
 					uint16_t tID = getSixteenBitIntFromEightBitVector(payload, 4);
-					std::string direction = (payload[3] == 0x01) ? "uplink" : (payload[3] == 0x00) ? "downlink" : "{unknown direction}";
-					if (payload[6] == 0x00)
-						log("CommHndl -> Satelitte has successfully deleted " + direction + " incomplete transfer {" + std::to_string(tID) + "}.");
-					else if (payload[6] == 0x01)
-						log("CommHndl -> Satelitte didn't delete " + direction + " non-existent transfer {" + std::to_string(tID) + "}.");
-					else if (payload[6] == 0x0F)
-						log("CommHndl -> Satelitte encountered an error deleting " + direction + " incomplete transfer {" + std::to_string(tID) + "}.");
+					if (payload[3] == 0x01) {
+						//incoming uplink transfer
+						try {
+							if (cancelIncomingTransfer(tID)) {
+								payload.push_back(0x00);
+							}
+							else {
+								payload.push_back(0x01);
+							}
+							sendRFPacket(AX25GSCallsignSSID, payload);
+						}
+						catch (...) {
+							payload.push_back(0x0F);
+							sendRFPacket(AX25GSCallsignSSID, payload);
+							log("CommHndl -> An error occurred when attempting to delete incoming incomplete transfer {" + std::to_string(tID) + "}.");
+						}
+					}
+					else if (payload[3] == 0x00) {
+						//outgoing downlink tansfer
+						try {
+							if (cancelOutgoingTransfer(tID)) {
+								payload.push_back(0x00);
+							}
+							else {
+								payload.push_back(0x01);
+							}
+							sendRFPacket(AX25GSCallsignSSID, payload);
+						}
+						catch (...) {
+							payload.push_back(0x0F);
+							sendRFPacket(AX25GSCallsignSSID, payload);
+							log("CommHndl -> An error occurred when attempting to delete outgoing incomplete transfer {" + std::to_string(tID) + "}.");
+						}
+					}
 				}
 			}
 		}
 		else if (payload[0] == 'L') {
 			if (payload[1] == 'M') {
-				//Response for saving current log file to old log files folder
-				if (payload.size() < 3) //To avoid accessing outside vector size
-					return;
-				if (payload[2] == 0)
-					log("CommHndl -> Current Log file has been successfully saved to Old Logs Folder.");
-				else
-					log("CommHndl -> An error (" + std::to_string(payload[2]) + ") occurred when attempting to save log file to Old Logs Folder.");
+				//Payload for saving current log file to old log files folder
+				payload.push_back(0x00);
+				//payload[2] = logFileSave();
+				logFileSave();
+				sendRFPacket(AX25GSCallsignSSID, payload);
 			}
-			else if (payload[1] == 'F') {
-				//Response of file names of lora files
-				if (payload.size() < 3) //To avoid accessing outside vector size
-					return;
-				if (payload[2] == 0x00) {
-					log("CommHndl -> There are " + std::to_string(payload[3]) + " old log files on the satellite.");
+			else if ((payload[1] == 'R') || (payload[1] == 'F')) {
+				//Payload for sending file names of lora files or old log files
+				bool lora = (payload[1] == 'R');
+				std::vector<std::string> files;
+
+				WIN32_FIND_DATA data;
+				System::String^ prefix;
+				if (lora) prefix = L"lr\\";
+				else prefix = L"lf\\";
+				System::String^ location = this->downlinkSatFilesLocation + L"\\" + prefix + L".";
+				pin_ptr<const wchar_t> wname = PtrToStringChars(location);
+				HANDLE hFind = FindFirstFile(wname, &data);      // DIRECTORY
+
+				if (hFind != INVALID_HANDLE_VALUE) {
+					do {
+						std::wstring ws = data.cFileName;
+						std::string s(ws.begin(), ws.begin());
+						files.push_back(s);
+					} while (FindNextFile(hFind, &data));
+					FindClose(hFind);
+
+					std::vector<uint8_t> pck;
+					pck.push_back('L');
+					pck.push_back(lora ? 'R' : 'F');
+					pck.push_back(0x00);
+					pck.push_back(files.size());
+					sendRFPacket(AX25GSCallsignSSID, pck);
+					for (int i = 0; i < files.size(); i++) {
+						pck.erase(pck.begin() + 2, pck.end());
+						pck.push_back(0x0F);
+						std::string stdPrefix = msclr::interop::marshal_as<std::string>(prefix);
+						pck.insert(pck.end(), stdPrefix.begin(), stdPrefix.end());
+						pck.insert(pck.end(), files[i].begin(), files[i].end());
+						sendRFPacket(AX25GSCallsignSSID, pck);
+					}
 				}
-				else if (payload[2] == 0x01) {
-					log("CommHndl -> There was an error finding how many old log files are on the satellite.");
-				}
-				else if (payload[2] == 0x0F) {
-					payload[0] = 'l';
-					payload[1] = 'f';
-					payload[2] = '/';
-					std::string file(payload.begin(), payload.end());
-					System::String^ fileSys = gcnew System::String(file.c_str());
-					addDownlinkableFileName(fileSys);
-				}
-			}
-			else if (payload[1] == 'R') {
-				//Response of file names of old log files
-				if (payload.size() < 3) //To avoid accessing outside vector size
-					return;
-				if (payload[2] == 0x00) {
-					log("CommHndl -> There are " + std::to_string(payload[3]) + " LoRa packets on the satellite.");
-				}
-				else if (payload[2] == 0x01) {
-					log("CommHndl -> There was an error finding how many LoRa packets are on the satellite.");
-				}
-				else if (payload[2] == 0x0F) {
-					payload[0] = 'l';
-					payload[1] = 'r';
-					payload[2] = '/';
-					std::string file(payload.begin(), payload.end());
-					System::String^ fileSys = gcnew System::String(file.c_str());
-					addDownlinkableFileName(fileSys);
+				else {
+					//Error Opening directory
+					std::vector<uint8_t> pck;
+					pck.push_back('L');
+					pck.push_back(lora ? 'R' : 'F');
+					pck.push_back(0x01);
+					sendRFPacket(AX25GSCallsignSSID, pck);
 				}
 			}
 		}
 		else if ((payload[0] == 'I') && (payload[1] == 'M')) {
-			//Response of the file names of images present on the satellite
-			if (payload.size() < 3) //To avoid accessing outside vector size
-				return;
-			if (payload[2] == 0x00) {
-				log("CommHndl -> There are " + std::to_string(payload[3]) + " images on the satellite.");
+			//Payload for sending file names of images present on the satellite
+			std::vector<std::string> files;
+
+			WIN32_FIND_DATA data;
+			System::String^ prefix = L"im\\";
+			System::String^ location = this->downlinkSatFilesLocation + L"\\" + prefix + L".";
+			pin_ptr<const wchar_t> wname = PtrToStringChars(location);
+			HANDLE hFind = FindFirstFile(wname, &data);      // DIRECTORY
+
+			if (hFind != INVALID_HANDLE_VALUE) {
+				do {
+					std::wstring ws = data.cFileName;
+					std::string s(ws.begin(), ws.begin());
+					files.push_back(s);
+				} while (FindNextFile(hFind, &data));
+				FindClose(hFind);
+
+				std::vector<uint8_t> pck;
+				pck.push_back('I');
+				pck.push_back('M');
+				pck.push_back(0x00);
+				pck.push_back(files.size());
+				sendRFPacket(AX25GSCallsignSSID, pck);
+				for (int i = 0; i < files.size(); i++) {
+					pck.erase(pck.begin() + 2, pck.end());
+					pck.push_back(0x0F);
+					std::string stdPrefix = msclr::interop::marshal_as<std::string>(prefix);
+					pck.insert(pck.end(), stdPrefix.begin(), stdPrefix.end());
+					pck.insert(pck.end(), files[i].begin(), files[i].end());
+					sendRFPacket(AX25GSCallsignSSID, pck);
+				}
 			}
-			else if (payload[2] == 0x01) {
-				log("CommHndl -> There was an error finding how many images are on the satellite.");
+			else {
+				//Error Opening directory
+				std::vector<uint8_t> pck;
+				pck.push_back('I');
+				pck.push_back('M');
+				pck.push_back(0x01);
+				sendRFPacket(AX25GSCallsignSSID, pck);
 			}
-			else if (payload[2] == 0x0F) {
-				payload[0] = 'i';
-				payload[1] = 'm';
-				payload[2] = '/';
-				std::string file(payload.begin(), payload.end());
-				System::String^ fileSys = gcnew System::String(file.c_str());
-				addDownlinkableFileName(fileSys);
+		}
+		else if ((payload[0] == 'H') && (payload[1] == 'K')) {
+			log("CommHndl -> Request to transmit HK data received.");
+			std::string file;
+			file = "hk/";
+			file += HK_LOG_FILE;
+
+			std::vector<uint8_t> pck;
+			pck.push_back('T');
+			pck.push_back('R');
+			pck.push_back(0x00);
+			pck.insert(pck.end(), file.begin(), file.end());
+
+			FileTransfer newFileTransfer = initializeFileTransfer(false, payload);
+
+			if (newFileTransfer.ready) {
+				CommsNaSPUoN::outgoingTransfers[newFileTransfer.transferID] = newFileTransfer;
+				pck.clear();
+				pck = getInitializationPacket(&newFileTransfer);
+				sendRFPacket(AX25GSCallsignSSID, pck);
+				log("CommHndl -> Sent initializer for downlink transfer of tID {" + std::to_string(newFileTransfer.transferID) + "}.");
 			}
 		}
 		else if ((payload[0] == 'X') && (payload[1] == 'C')) {
-			//Response for saving uploaded XBee Config file
+			//Payload for saving uploaded Satellite Config file
 			if (payload.size() < 3) //To avoid accessing outside vector size
 				return;
-			if (payload[2] == 0x00) {
-				log("CommHndl -> Satellite Successfully copied the config file.");
+			std::string source = getUplinkSaveLocation();
+			source += "\\";
+			source += SAT_CONFIG_FILE_NAME;
+			std::string configFile = getDownlinkSatFilesLocation();
+			configFile += "\\cfg\\";
+			configFile += SAT_CONFIG_FILE_NAME;
+			if (checkIfFileExists(source)) {
+				int result = rename(source.c_str(), configFile.c_str());
+				if (result) {
+					logErr("CommHndl -> Attempt to copy config file from uplink location failed due to error.");
+					payload[2] = 0x02;
+				}
+				else {
+					if (payload[2]) {
+						log("CommHndl -> New config file copied from uplink location. Applying the new settings.");
+						/*if (setupSatellite()) payload[2] = 0x10;
+						else {
+							logErr("CommHndl -> Attempt to apply new settings from new config file failed.");
+							payload[2] = 0x04;
+						}*/
+					}
+				}
 			}
-			else if (payload[2] == 0x10) {
-				log("CommHndl -> Satellite Successfully copied the config file and successfully setup the xbee with the new settings.");
+			else {
+				logErr("CommHndl -> Attempt to copy config file from uplink location failed. File not found.");
+				payload[2] = 0x01;
 			}
-			else if (payload[2] == 0x01) {
-				logErr("CommHndl -> Satellite failed to copy config file from uplink location. File not found.");
-			}
-			else if (payload[2] == 0x02) {
-				logErr("CommHndl -> Satellite failed to copy config file from uplink location due to error.");
-			}
-			else if (payload[2] == 0x04) {
-				logErr("CommHndl -> Satellite Successfully copied the config file BUT failed to setup the xbee with the new settings.");
-			}
+			sendRFPacket(AX25GSCallsignSSID, payload);
 		}
-		else if ((payload[0] == 'D') && (payload[1] == 'R')) {
-			//Payload for sending date and time to the satellite
-			if (payload.size() != 2) //To avoid errors
+		else if ((payload[0] == 'D') && (payload[1] == 'S')) {
+			//Payload for saving date and time to the system date and time
+			if (payload.size() < 9) //To avoid accessing outside vector size
 				return;
-			payload[1] = 'S';
-
-			//Retrieving system time
-			time_t now = time(0);
-			time_t *timeNow = &now;
-			tm *localTime = localtime(timeNow);
+			std::string command;
+			command = "sudo date +%Y%m%d%T -s '";
 
 			//Year
-			uint16_t year = localTime->tm_year + 1900;
-			payload.push_back((uint8_t)(year / 256)); //(year >> 8)
-			payload.push_back((uint8_t)(year % 256)); //(year & 0x00ff)
+			uint16_t year = (payload[2] * 256) + payload[3];
+			if (year < 1000) command += "0";
+			if (year < 100) command += "0";
+			if (year < 10) command += "0";
+			command += std::to_string(year);
 			//Month
-			payload.push_back((uint8_t)(localTime->tm_mon + 1));
+			if (payload[4] < 10) command += "0";
+			if ((payload[4] > 12) || (payload[4] == 0)) return;
+			command += std::to_string(payload[4]);
 			//Day of the month
-			payload.push_back((uint8_t)(localTime->tm_mday));
+			if (payload[5] < 10) command += "0";
+			if ((payload[5] > 31) || (payload[5] == 0)) return;
+			command += std::to_string(payload[5]);
 
-			//Time -> Hour, Minutes and Seconds
-			payload.push_back((uint8_t)(localTime->tm_hour));
-			payload.push_back((uint8_t)(localTime->tm_min));
-			payload.push_back((uint8_t)(localTime->tm_sec));
+			//Separator between date and time
+			command += " ";
 
-			sendRFPacket(AX25SatCallsignSSID, payload);
+			//Hour
+			if (payload[6] < 10) command += "0";
+			else if (payload[6] > 23) return;
+			command += std::to_string(payload[6]);
+			command += ":";
+			//Minutes
+			if (payload[7] < 10) command += "0";
+			else if (payload[7] > 59) return;
+			command += std::to_string(payload[7]);
+			command += ":";
+			//Seconds
+			if (payload[8] < 10) command += "0";
+			else if (payload[8] > 59) return;
+			command += std::to_string(payload[8]);
 
-			log("CommHndl -> Sent time to the satellite.");
+			command += "'";
+
+			//system(command.c_str());
+			log("CommHndl -> Time to be saved using the command: " + command);
 		}
 	}
 	catch (...) {
@@ -639,91 +770,82 @@ std::vector< std::vector<uint8_t> > SatUI::MyForm::transferOutPacketsConstructio
 	return packets;
 }
 
-void SatUI::MyForm::cancelIncomingTransfer(uint16_t tID) {
-	if (this->backgroundWorker_DownlinkPartRequest->IsBusy) {
-		backgroundWorker_DownlinkPartRequest->CancelAsync();
+bool SatUI::MyForm::cancelIncomingTransfer(uint16_t tID) {
+	if (this->backgroundWorker_UplinkPartRequest->IsBusy) {
+		backgroundWorker_UplinkPartRequest->CancelAsync();
 		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_DownlinkPartRequest to stop
 	}
 	if (CommsNaSPUoN::incomingTransfers.count(tID)) {
 		CommsNaSPUoN::incomingTransfers.erase(tID);
+		log("CommHndl -> Incomplete incoming transfer {" + std::to_string(tID) + "} has been deleted successfully.");
+		return true;
+	}
+	else {
+		log("The current incoming File Transfer appears to have already completed.");
+		return false;
+	}
+}
+
+bool SatUI::MyForm::cancelOutgoingTransfer(uint16_t tID) {
+	if (backgroundWorker_Downlink[tID]->IsBusy) {
+		backgroundWorker_Downlink[tID]->CancelAsync();
+		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Downlink to stop
+	}
+	backgroundWorker_Downlink->erase(tID);
+
+	if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
+		CommsNaSPUoN::outgoingTransfers.erase(tID);
 		if (transferForms->count(tID)) {
 			transferForms[tID]->Close();
 			transferForms->erase(tID);
 		}
-	}
-	else {
-		log("The current incoming File Transfer appears to have already completed.");
-	}
-}
-
-void SatUI::MyForm::newOutgoingTransfer(std::vector<uint8_t> AX25SatCallsignSSID, std::string fileNameWithPath) {
-	FileTransfer ft;
-
-	std::string fileName = "";
-	for (int i = (fileNameWithPath.size() - 1); ((i > 0) && (fileNameWithPath[i] != '\\')); i--) {
-		fileName.insert(fileName.begin(), fileNameWithPath[i]);
-	}
-
-	if (checkIfFileExists(fileNameWithPath)) {
-		std::vector<uint8_t> file = retrieveFileToTransfer(fileNameWithPath);
-		ft.fileSize = file.size();
-		ft.fileName = fileName;
-
-		ft.packets = transferOutPacketsConstruction(ft.transferID, ft.fileName, file);
-		ft.expectedPackets = ft.packets.size() - 1;
-
-		CommsNaSPUoN::outgoingTransfers[ft.transferID] = ft;
-		this->currentUplinkTransferID = ft.transferID;
-		sendRFPacket(AX25SatCallsignSSID, getInitializationPacket(&ft));
-		log("CommHndl -> Transfer initialization packet sent.");
-	}
-	else {
-		logErr("CommHndl -> Request to transfer out '" + fileNameWithPath + "' denied since file cannot be found.");
-	}
-}
-
-void SatUI::MyForm::cancelOutgoingTransfer(uint16_t tID) {
-	if (this->backgroundWorker_Uplink->IsBusy) {
-		backgroundWorker_Uplink->CancelAsync();
-		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Uplink to stop
-	}
-	if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
-		CommsNaSPUoN::outgoingTransfers.erase(tID);
+		log("CommHndl -> Incomplete outgoing transfer {" + std::to_string(tID) + "} has been deleted successfully.");
+		return true;
 	}
 	else {
 		log("The current outgoing File Transfer appears to have already completed.");
+		return false;
 	}
 }
 
-void SatUI::MyForm::cancelAllTransfers() {
-	if (this->backgroundWorker_Uplink->IsBusy) {
-		backgroundWorker_Uplink->CancelAsync();
-		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Uplink to stop
-	}
-	if (this->backgroundWorker_DownlinkPartRequest->IsBusy) {
-		backgroundWorker_DownlinkPartRequest->CancelAsync();
-		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_DownlinkPartRequest to stop
-	}
-
+void SatUI::MyForm::cancelAllTransfers(std::vector<uint8_t> AX25GSCallsignSSID) {
 	std::vector<uint8_t> payload;
 	payload.push_back('T');
 	payload.push_back('Z');
-	payload.push_back(0xFF); //Delete all incomplete transfers
-
-	sendRFPacket(this->getSatelliteCallsignSSID(), payload);
-
-	for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::incomingTransfers.begin(); it != CommsNaSPUoN::incomingTransfers.end(); it++) {
-		CommsNaSPUoN::incomingTransfers.erase(it);
+	payload.push_back(0xFF);
+	try {
+		for (cliext::map<uint16_t, System::ComponentModel::BackgroundWorker^>::iterator it = backgroundWorker_Downlink->begin(); it != backgroundWorker_Downlink->end(); it++) {
+			if (it->second->IsBusy) {
+				it->second->CancelAsync();
+				System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Downlink to stop
+				transferForms[it->first]->Close();
+			}
+			backgroundWorker_Downlink->erase(it);
+		}
+		if (this->backgroundWorker_UplinkPartRequest->IsBusy) {
+			backgroundWorker_UplinkPartRequest->CancelAsync();
+			System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_DownlinkPartRequest to stop
+		}
+		for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::incomingTransfers.begin(); it != CommsNaSPUoN::incomingTransfers.end(); it++) {
+			CommsNaSPUoN::incomingTransfers.erase(it);
+		}
+		for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::outgoingTransfers.begin(); it != CommsNaSPUoN::outgoingTransfers.end(); it++) {
+			CommsNaSPUoN::outgoingTransfers.erase(it);
+		}
+		payload.push_back(0x00);
+		sendRFPacket(AX25GSCallsignSSID, payload);
+		log("CommHndl -> All incomplete transfers have been deleted successfully.");
 	}
-	for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::outgoingTransfers.begin(); it != CommsNaSPUoN::outgoingTransfers.end(); it++) {
-		CommsNaSPUoN::outgoingTransfers.erase(it);
+	catch (...) {
+		payload.push_back(0x01);
+		sendRFPacket(AX25GSCallsignSSID, payload);
+		log("CommHndl -> An error occurred when attempting to delete all incomplete transfers.");
 	}
-	log("CommHndl -> All incomplete transfers have been deleted successfully.");
 
 	for (cliext::map<uint16_t, DownlinkTransfer^>::iterator it = transferForms->begin(); it != transferForms->end(); it++) {
 		transferForms->erase(it);
 	}
-	uplinkComplete(false);
+	adjuplinkComplete(false);
 }
 
 

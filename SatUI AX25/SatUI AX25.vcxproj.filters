@@ -47,25 +47,25 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="AboutDialog.resx">
-      <Filter>Header Files</Filter>
-    </EmbeddedResource>
     <EmbeddedResource Include="MyForm.resx">
-      <Filter>Header Files</Filter>
+      <Filter>Resource Files</Filter>
     </EmbeddedResource>
     <EmbeddedResource Include="DownlinkTransfer.resx">
-      <Filter>Header Files</Filter>
+      <Filter>Resource Files</Filter>
+    </EmbeddedResource>
+    <EmbeddedResource Include="AboutDialog.resx">
+      <Filter>Resource Files</Filter>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="MyForm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AboutDialog.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
     <ClCompile Include="DownlinkTransfer.cpp">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AboutDialog.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

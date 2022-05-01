@@ -114,14 +114,14 @@ void SatUI::MyForm::kissDecapsulate(std::vector<uint8_t> & receivedFrame) {
 	uint8_t kissPacketType = receivedFrame[0] & 0x0F;
 	receivedFrame.erase(receivedFrame.begin());
 
-	std::vector<uint8_t> AX25SatCallsignSSID;
+	std::vector<uint8_t> AX25GSCallsignSSID;
 	int temp;
 	switch (kissPacketType) {
 	case KISS_TYPE_DATA:
-		AX25SatCallsignSSID = ax25Decapsulate(receivedFrame);
-		if (AX25SatCallsignSSID.size() > 0) {
-			HPAX25PacketDecapsulate(AX25SatCallsignSSID, receivedFrame);
-			processIncomingPayload(AX25SatCallsignSSID, receivedFrame);
+		AX25GSCallsignSSID = ax25Decapsulate(receivedFrame);
+		if (AX25GSCallsignSSID.size() > 0) {
+			HPAX25PacketDecapsulate(AX25GSCallsignSSID, receivedFrame);
+			processIncomingPayload(AX25GSCallsignSSID, receivedFrame);
 		}
 		break;
 	case KISS_TYPE_CMD:
@@ -231,15 +231,15 @@ std::vector<uint8_t> SatUI::MyForm::ax25Decapsulate(std::vector<uint8_t> & kissd
 		if (msgSource[i] == ' ') msgSource.erase(msgSource.begin() + i);
 	}
 
-	//If message is not meant for the ground station address, drop it
-	std::vector<uint8_t> groundCallsign = this->getGroundCallsignSSID();
-	if ((msgDestination.size() + 1) != groundCallsign.size())
+	//If message is not meant for the satellite address, drop it
+	std::vector<uint8_t> satelliteCallsign = this->getSatelliteCallsignSSID();
+	if ((msgDestination.size() + 1) != satelliteCallsign.size())
 		return ret;
 	for (int i = 0; i < msgDestination.size(); i++) {
-		if (msgDestination[i] != groundCallsign[i])
+		if (msgDestination[i] != satelliteCallsign[i])
 			return ret;
 	}
-	if (msgDestinationSSID != groundCallsign[groundCallsign.size() - 1])
+	if (msgDestinationSSID != satelliteCallsign[satelliteCallsign.size() - 1])
 		return ret;
 
 	//Getting the actual message by removing address field, control field and protocol field
@@ -258,24 +258,24 @@ std::vector<uint8_t> SatUI::MyForm::ax25Decapsulate(std::vector<uint8_t> & kissd
 	return ret;
 }
 
-void SatUI::MyForm::ax25Encapsulate(std::vector<uint8_t> AX25SatCallsignSSID, std::vector<uint8_t> & outgoingMsg) {
+void SatUI::MyForm::ax25Encapsulate(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & outgoingMsg) {
 	outgoingMsg.insert(outgoingMsg.begin(), APRS_MORSE_DATA_IND);
 	outgoingMsg.insert(outgoingMsg.begin(), AX25_NO_PROT_PID);
 	outgoingMsg.insert(outgoingMsg.begin(), AX25_UI_CONTROL);
 
-	std::vector<uint8_t> source = this->getGroundCallsignSSID();
+	std::vector<uint8_t> source = this->getSatelliteCallsignSSID();
 	source.pop_back();
 	while (source.size() < 6) source.push_back(' ');
-	source.push_back(this->groundSSID | AX25_SSID_PREFIX);
+	source.push_back(this->satelliteSSID | AX25_SSID_PREFIX);
 	for (int i = 0; i < source.size(); i++) {
 		source[i] <<= 1;
 	}
 	source[6] |= 0x01;
 	outgoingMsg.insert(outgoingMsg.begin(), source.begin(), source.end());
 
-	std::vector<uint8_t> dest(AX25SatCallsignSSID.begin(), AX25SatCallsignSSID.end()-1);
+	std::vector<uint8_t> dest(AX25GSCallsignSSID.begin(), AX25GSCallsignSSID.end()-1);
 	for (int i = dest.size(); i < 6; i++) dest.push_back(' ');
-	dest.push_back(AX25SatCallsignSSID[AX25SatCallsignSSID.size()-1] | AX25_SSID_PREFIX);
+	dest.push_back(AX25GSCallsignSSID[AX25GSCallsignSSID.size()-1] | AX25_SSID_PREFIX);
 	for (int i = 0; i < dest.size(); i++) {
 		dest[i] <<= 1;
 	}
@@ -283,9 +283,9 @@ void SatUI::MyForm::ax25Encapsulate(std::vector<uint8_t> AX25SatCallsignSSID, st
 }
 
 
-void SatUI::MyForm::sendRFPacketAX25(std::vector<uint8_t> AX25SatCallsignSSID, std::vector<uint8_t> & packet) {
-	HPAX25PacketEncapsulate(AX25SatCallsignSSID, packet);
-	ax25Encapsulate(AX25SatCallsignSSID, packet);
+void SatUI::MyForm::sendRFPacketAX25(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & packet) {
+	HPAX25PacketEncapsulate(AX25GSCallsignSSID, packet);
+	ax25Encapsulate(AX25GSCallsignSSID, packet);
 	kissEncapsulate(false, packet);
 	
 	//Requesting the TNC to send its buffer used up space
@@ -312,7 +312,7 @@ void SatUI::MyForm::sendAX25Frames() {
 	//Adding High Priority Packets that are meant to be resent to the Out Buffer
 	msclr::lock lck0(HPAX25Mutex);
 	for (std::map<uint64_t, std::vector<uint8_t>>::iterator it = KISS::HPAX25AwaitingACK.begin(); it != KISS::HPAX25AwaitingACK.end(); it++) {
-		std::vector<uint8_t> AX25SatCallsignSSID((it->second).begin(), (it->second).begin() + 8);
+		std::vector<uint8_t> AX25GSCallsignSSID((it->second).begin(), (it->second).begin() + 8);
 		std::vector<uint8_t> packet((it->second).begin() + 8, (it->second).end());
 		uint8_t resendCount = packet[3];
 		if (resendCount >= AX25_RESEND_LIMIT) {
@@ -324,7 +324,7 @@ void SatUI::MyForm::sendAX25Frames() {
 			nextResendTimeStamp += getSixtyFourBitIntFromEightBitVector(packet, 4);
 			if (currentTimeStamp > nextResendTimeStamp) {
 				packet[3] ++;
-				sendRFPacketAX25(AX25SatCallsignSSID, packet);
+				sendRFPacketAX25(AX25GSCallsignSSID, packet);
 			}
 		}
 	}
@@ -370,7 +370,7 @@ bool SatUI::MyForm::isOutAX25PacketHP(std::vector<uint8_t> & frameToSend) {
 }
 
 //Function that encapsulates frames that are high priority with an ID and 'HP' tag
-void SatUI::MyForm::HPAX25PacketEncapsulate(std::vector<uint8_t> AX25SatCallsignSSID, std::vector<uint8_t> & frameToSend) {
+void SatUI::MyForm::HPAX25PacketEncapsulate(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & frameToSend) {
 	if (isOutAX25PacketHP(frameToSend)) {
 		uint64_t HPID = timeSinceEpochMillisec();
 		insertSixtyFourBitIntInEightBitVector(frameToSend, frameToSend.begin(), HPID);
@@ -380,9 +380,9 @@ void SatUI::MyForm::HPAX25PacketEncapsulate(std::vector<uint8_t> AX25SatCallsign
 		frameToSend.insert(frameToSend.begin(), 'H');
 
 		std::vector<uint8_t> frameToSave(frameToSend.begin(), frameToSend.end());
-		for (int i = AX25SatCallsignSSID.size(); i < 8; i++)
-			AX25SatCallsignSSID.push_back(';');
-		frameToSave.insert(frameToSave.begin(), AX25SatCallsignSSID.begin(), AX25SatCallsignSSID.end());
+		for (int i = AX25GSCallsignSSID.size(); i < 8; i++)
+			AX25GSCallsignSSID.push_back(';');
+		frameToSave.insert(frameToSave.begin(), AX25GSCallsignSSID.begin(), AX25GSCallsignSSID.end());
 		
 		KISS::HPAX25AwaitingACK.insert(std::make_pair(HPID, frameToSave));
 	}
@@ -393,7 +393,7 @@ void SatUI::MyForm::HPAX25PacketEncapsulate(std::vector<uint8_t> AX25SatCallsign
 //Function that removes the 'HP' tag from received frames that are High Priority
 //	and sends back the corresponding ACK
 //It also checks if the received packet is an ACK
-void SatUI::MyForm::HPAX25PacketDecapsulate(std::vector<uint8_t> AX25SatCallsignSSID, std::vector<uint8_t> & receivedFrame) {
+void SatUI::MyForm::HPAX25PacketDecapsulate(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & receivedFrame) {
 	if ((receivedFrame.size() >= 11) && (receivedFrame[0] == 'H') && (receivedFrame[1] == 'P')) {
 		if (receivedFrame[2] == 'A') {
 			//Acknowledgement packet -> Remove from High Pririty packets to be resent
@@ -413,7 +413,7 @@ void SatUI::MyForm::HPAX25PacketDecapsulate(std::vector<uint8_t> AX25SatCallsign
 			std::vector<uint8_t> ack(receivedFrame.begin(), receivedFrame.begin() + 12);
 			ack[2] = 'A';
 			ack.erase(ack.begin() + 3);
-			sendRFPacketAX25(AX25SatCallsignSSID, ack);
+			sendRFPacketAX25(AX25GSCallsignSSID, ack);
 			receivedFrame.erase(receivedFrame.begin(), receivedFrame.begin() + 12);
 		}
 		else
