@@ -787,11 +787,13 @@ bool SatUI::MyForm::cancelIncomingTransfer(uint16_t tID) {
 }
 
 bool SatUI::MyForm::cancelOutgoingTransfer(uint16_t tID) {
-	if (backgroundWorker_Downlink[tID]->IsBusy) {
-		backgroundWorker_Downlink[tID]->CancelAsync();
-		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Downlink to stop
+	if (backgroundWorker_Downlink->count(tID)) {
+		if (backgroundWorker_Downlink[tID]->IsBusy) {
+			backgroundWorker_Downlink[tID]->CancelAsync();
+			System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Downlink to stop
+		}
+		backgroundWorker_Downlink->erase(tID);
 	}
-	backgroundWorker_Downlink->erase(tID);
 
 	if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
 		CommsNaSPUoN::outgoingTransfers.erase(tID);
