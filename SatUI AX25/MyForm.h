@@ -684,6 +684,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 					this->TNCPort = this->comboBox_TNCPort->Text[0] - '0';
 					if (this->TNCPort > 10)
 						this->TNCPort += (('0' + 10) - 'A');
+					this->TNCPort <<= 4; //Port number occupies high order nibble
 
 					//Getting satellite's AX.25 SSID and Callsign
 					this->satelliteSSID = this->textBox_AX25SatSSID->Text[0] - '0';
@@ -695,7 +696,6 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 					this->groundSSID = this->textBox_AX25GSSSID->Text[0] - '0';
 					if (this->groundSSID > 10)
 						this->groundSSID += (('0' + 10) - 'A');
-					this->satelliteCallsign = this->textBox_AX25SatCallsign->Text;
 					this->groundCallsign = this->textBox_AX25GSCallsign->Text;
 
 					//Enabling input controls
