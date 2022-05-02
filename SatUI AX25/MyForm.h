@@ -50,6 +50,7 @@ namespace SatUI {
 			this->kissOutMutex = gcnew System::Object();
 			this->HPAX25Mutex = gcnew System::Object();
 			this->UIThreadID = System::Threading::Thread::CurrentThread->ManagedThreadId;
+			this->DownlinkThreadID = gcnew cliext::map<uint16_t, int>();
 			this->transferForms = gcnew cliext::map<uint16_t, DownlinkTransfer^>();
 			this->backgroundWorker_Downlink = gcnew cliext::map<uint16_t, System::ComponentModel::BackgroundWorker^>();
 			//
@@ -143,7 +144,7 @@ namespace SatUI {
 		System::Object^ HPAX25Mutex;
 		uint16_t currentDownlinkTransferID, currentUplinkTransferID;
 		System::String^ uplinkSaveLocation, ^downlinkSatFilesLocation;
-		int UIThreadID, receiverThreadID, UplinkPtRqThreadID;
+		int UIThreadID, receiverThreadID, resenderThreadID, UplinkPtRqThreadID;
 		cliext::map<uint16_t, int>^ DownlinkThreadID;
 		AboutDialog^ about;
 	private: System::Windows::Forms::Button^  button_about;
@@ -303,7 +304,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 			this->textBox_uplinkSaveLocation->ScrollBars = System::Windows::Forms::ScrollBars::Vertical;
 			this->textBox_uplinkSaveLocation->Size = System::Drawing::Size(297, 50);
 			this->textBox_uplinkSaveLocation->TabIndex = 18;
-			this->textBox_uplinkSaveLocation->Text = L"%USERPROFILE%\\Desktop\\NaSPUoN transfers\\Sat\\uplinks";
+			this->textBox_uplinkSaveLocation->Text = L"C:\\Users\\AlvyneZ\\Desktop\\NaSPUoN transfers\\Sat\\uplinks";
 			// 
 			// groupBox_Initialization
 			// 
@@ -436,7 +437,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 			this->textBox_downlinkSatFilesLocation->ScrollBars = System::Windows::Forms::ScrollBars::Vertical;
 			this->textBox_downlinkSatFilesLocation->Size = System::Drawing::Size(297, 50);
 			this->textBox_downlinkSatFilesLocation->TabIndex = 29;
-			this->textBox_downlinkSatFilesLocation->Text = L"%USERPROFILE%\\Desktop\\NaSPUoN transfers\\Sat\\downlinks";
+			this->textBox_downlinkSatFilesLocation->Text = L"C:\\Users\\AlvyneZ\\Desktop\\NaSPUoN transfers\\Sat\\downlinks";
 			// 
 			// label_downlinkSatFilesLocation
 			// 
@@ -450,8 +451,10 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 			// 
 			// backgroundWorker_Resender
 			// 
+			this->backgroundWorker_Resender->WorkerReportsProgress = true;
 			this->backgroundWorker_Resender->WorkerSupportsCancellation = true;
 			this->backgroundWorker_Resender->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MyForm::backgroundWorker_Resender_DoWork);
+			this->backgroundWorker_Resender->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MyForm::backgroundWorker_Resender_ProgressChanged);
 			this->backgroundWorker_Resender->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MyForm::backgroundWorker_Resender_RunWorkerCompleted);
 			// 
 			// button_about
@@ -609,7 +612,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 				//Enabling or disabling input controls
 				this->button_closePort->Enabled = enabled;
 				if (enabled) {
-					clearOutput();
+					//clearOutput();
 					this->progressBar_PortOpenSatus->Value = 100;
 				}
 				else {
@@ -841,6 +844,10 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 					//For the downlink controls to be disabled
 					logFileSave();
 				}
+				else if (e->ProgressPercentage == 11) {
+					//For the transfer Form to be closed
+					adjdownlinkComplete(safe_cast<uint16_t>(e->UserState));
+				}
 			}
 
 			//Function that runs after receiver thread is closed
@@ -850,14 +857,37 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 
 			//Thread for resending high priority packets if they are not received
 			private: System::Void backgroundWorker_Resender_DoWork(System::Object^  sender, System::ComponentModel::DoWorkEventArgs^  e) {
+
+				//Saving resender thread ID to UI thread to enable for output to form's controls that are owned by the UIThread
+				int rsndThrdID = System::Threading::Thread::CurrentThread->ManagedThreadId;
+				backgroundWorker_Resender->ReportProgress(10, rsndThrdID);
+				//Stalling for the receiveThreadID to be updated
+				System::Threading::Thread::CurrentThread->Sleep(100);
+
 				while (1) {
-					System::Threading::Thread::CurrentThread->Sleep(200);
+					System::Threading::Thread::CurrentThread->Sleep(80);
 					if (this->backgroundWorker_Receiver->CancellationPending) {
 						e->Cancel = true;
 						return;
 					}
 
 					sendAX25Frames();
+				}
+			}
+
+			//Function that is executed on UI thread when backgroundWorker_Resender->ReportProgress() is called
+			private: System::Void backgroundWorker_Resender_ProgressChanged(System::Object^  sender, System::ComponentModel::ProgressChangedEventArgs^  e) {
+				if (e->ProgressPercentage == 10) {
+					//For the system to know the threadID of the Resender_BackgroundWorker
+					this->resenderThreadID = safe_cast<int>(e->UserState);
+				}
+				else if (e->ProgressPercentage == 1) {
+					//For the resenderBackgroundWorker to be able to log to the richTextBox
+					log(msclr::interop::marshal_as<std::string>(e->UserState->ToString()));
+				}
+				else if (e->ProgressPercentage == 2) {
+					//For the resenderBackgroundWorker to be able to logErr to the richTextBox
+					logErr(msclr::interop::marshal_as<std::string>(e->UserState->ToString()));
 				}
 			}
 
@@ -885,7 +915,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 					int thread = System::Threading::Thread::CurrentThread->ManagedThreadId;
 					for (cliext::map<uint16_t, int>::iterator it = DownlinkThreadID->begin(); it != DownlinkThreadID->end(); it++) {
 						if (thread == it->second) {
-							if (backgroundWorker_Downlink[it->first]->IsBusy)
+							if ((backgroundWorker_Downlink->count(it->first)) && (backgroundWorker_Downlink[it->first]->IsBusy))
 								return this->backgroundWorker_Downlink[it->first]->ReportProgress(4, args);
 						}
 					}
@@ -897,7 +927,6 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 				//Check if serial port is open
 				if (!(this->serialPort1->IsOpen)) {
 					logErr("Could not send message. The port is not open.");
-					setEnableInputs(false);
 					return;
 				}
 				//TODO: Find a more efficient way of converting std::vector to System::array
@@ -1051,21 +1080,14 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 				}
 				else if (e->ProgressPercentage == 4) {
 					//For the progressBar_downlink to be updated
-					adjdownlinkProgressBarUpdate(safe_cast<int>(e->UserState));
-				}
-				else if (e->ProgressPercentage == 5) {
-					//For the controls to be returned to normal for another request to be made
-					adjdownlinkComplete(safe_cast<uint16_t>(e->UserState));
+					adjdownlinkProgressBarUpdate(e->UserState);
 				}
 			}
 
 			//Function that runs after Uplink thread is closed or completes
 			private: System::Void backgroundWorker_Downlink_RunWorkerCompleted(System::Object^  sender, System::ComponentModel::RunWorkerCompletedEventArgs^  e) {
 				if (e->Cancelled) {
-					adjuplinkComplete(false);
-				}
-				else {
-					adjuplinkComplete(true);
+					adjdownlinkComplete(safe_cast<uint16_t>(e->Result));
 				}
 			}
 
@@ -1224,14 +1246,9 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 						transferForms->erase(tID);
 					}
 				}
-				else {
-					int thread = System::Threading::Thread::CurrentThread->ManagedThreadId;
-					for (cliext::map<uint16_t, int>::iterator it = DownlinkThreadID->begin(); it != DownlinkThreadID->end(); it++) {
-						if (thread == it->second) {
-							if (backgroundWorker_Downlink[it->first]->IsBusy)
-								return this->backgroundWorker_Downlink[it->first]->ReportProgress(5, tID);
-						}
-					}
+				else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->receiverThreadID) {
+					if (backgroundWorker_Receiver->IsBusy)
+						backgroundWorker_Receiver->ReportProgress(11, tID);
 				}
 			}
 

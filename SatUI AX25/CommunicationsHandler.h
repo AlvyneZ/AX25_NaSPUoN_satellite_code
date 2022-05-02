@@ -264,6 +264,7 @@ void SatUI::MyForm::downlinkTransfer(std::vector<uint8_t> AX25GSCallsignSSID, ui
 		while (KISS::awaitTNC || (KISS::kissOutBuffer.size() > KISS_OUT_BUFFER_LIMIT)) {
 			if (this->backgroundWorker_Downlink[tID]->CancellationPending) {
 				e->Cancel = true;
+				e->Result = tID;
 				return;
 			}
 		}
@@ -376,6 +377,10 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 				if (payload.size() < 4) //To avoid accessing outside vector size
 					return;
 				uint16_t tID = getSixteenBitIntFromEightBitVector(payload, 2);
+				if (CommsNaSPUoN::incomingTransfers.count(tID)) {
+					logErr("CommHndl -> Received duplicate initializer for already ongoing incoming transfer " + std::to_string(tID));
+					return;
+				}
 				FileTransfer newFileTransfer = initializeFileTransfer(true, payload);
 
 				std::vector<uint8_t> pck;
@@ -452,7 +457,7 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 					bool complete = transferComplete(tID, AX25GSCallsignSSID);
 					if (complete) {
 						CommsNaSPUoN::incomingTransfers.erase(tID);
-						adjdownlinkComplete(tID);
+						adjuplinkComplete(true);
 						std::vector<uint8_t> pck;
 						pck.push_back('T');
 						pck.push_back('C');
@@ -464,7 +469,7 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 				}
 				else if ((payload[4] == 0x00) && (CommsNaSPUoN::outgoingTransfers.count(tID))) {
 					CommsNaSPUoN::outgoingTransfers.erase(tID);
-					adjuplinkComplete(true);
+					adjdownlinkComplete(tID);
 					log("CommHndl -> Successfully Completed outgoing transfer of tID " + std::to_string(tID) + ".");
 				}
 				else if ((payload[4] == 0x02) && (CommsNaSPUoN::outgoingTransfers.count(tID))) {
@@ -544,18 +549,19 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 				std::vector<std::string> files;
 
 				WIN32_FIND_DATA data;
-				System::String^ prefix;
-				if (lora) prefix = L"lr\\";
-				else prefix = L"lf\\";
-				System::String^ location = this->downlinkSatFilesLocation + L"\\" + prefix + L".";
+				System::String^ fld;
+				if (lora) fld = L"\\lr\\*";
+				else fld = L"\\lf\\*";
+				System::String^ location = this->downlinkSatFilesLocation + fld;
 				pin_ptr<const wchar_t> wname = PtrToStringChars(location);
 				HANDLE hFind = FindFirstFile(wname, &data);      // DIRECTORY
 
 				if (hFind != INVALID_HANDLE_VALUE) {
 					do {
 						std::wstring ws = data.cFileName;
-						std::string s(ws.begin(), ws.begin());
-						files.push_back(s);
+						std::string s(ws.begin(), ws.end());
+						if ((s != ".") && (s != "..") && (s != ""))
+							files.push_back(s);
 					} while (FindNextFile(hFind, &data));
 					FindClose(hFind);
 
@@ -566,10 +572,10 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 					pck.push_back(files.size());
 					sendRFPacket(AX25GSCallsignSSID, pck);
 					for (int i = 0; i < files.size(); i++) {
-						pck.erase(pck.begin() + 2, pck.end());
+						pck.clear();
+						pck.push_back('L');
+						pck.push_back(lora ? 'R' : 'F');
 						pck.push_back(0x0F);
-						std::string stdPrefix = msclr::interop::marshal_as<std::string>(prefix);
-						pck.insert(pck.end(), stdPrefix.begin(), stdPrefix.end());
 						pck.insert(pck.end(), files[i].begin(), files[i].end());
 						sendRFPacket(AX25GSCallsignSSID, pck);
 					}
@@ -581,6 +587,8 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 					pck.push_back(lora ? 'R' : 'F');
 					pck.push_back(0x01);
 					sendRFPacket(AX25GSCallsignSSID, pck);
+					std::string lrf = ((lora) ? "lora" : "log");
+					logErr("CommHndl -> Error encountered opening the directory of " + lrf + " files.");
 				}
 			}
 		}
@@ -589,16 +597,17 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 			std::vector<std::string> files;
 
 			WIN32_FIND_DATA data;
-			System::String^ prefix = L"im\\";
-			System::String^ location = this->downlinkSatFilesLocation + L"\\" + prefix + L".";
+			System::String^ fld = L"\\im\\*";
+			System::String^ location = this->downlinkSatFilesLocation + fld;
 			pin_ptr<const wchar_t> wname = PtrToStringChars(location);
 			HANDLE hFind = FindFirstFile(wname, &data);      // DIRECTORY
 
 			if (hFind != INVALID_HANDLE_VALUE) {
 				do {
 					std::wstring ws = data.cFileName;
-					std::string s(ws.begin(), ws.begin());
-					files.push_back(s);
+					std::string s(ws.begin(), ws.end());
+					if ((s != ".") && (s != "..") && (s != ""))
+						files.push_back(s);
 				} while (FindNextFile(hFind, &data));
 				FindClose(hFind);
 
@@ -609,10 +618,10 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 				pck.push_back(files.size());
 				sendRFPacket(AX25GSCallsignSSID, pck);
 				for (int i = 0; i < files.size(); i++) {
-					pck.erase(pck.begin() + 2, pck.end());
+					pck.clear();
+					pck.push_back('I');
+					pck.push_back('M');
 					pck.push_back(0x0F);
-					std::string stdPrefix = msclr::interop::marshal_as<std::string>(prefix);
-					pck.insert(pck.end(), stdPrefix.begin(), stdPrefix.end());
 					pck.insert(pck.end(), files[i].begin(), files[i].end());
 					sendRFPacket(AX25GSCallsignSSID, pck);
 				}
@@ -624,6 +633,7 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 				pck.push_back('M');
 				pck.push_back(0x01);
 				sendRFPacket(AX25GSCallsignSSID, pck);
+				logErr("CommHndl -> Error encountered opening the directory of images.");
 			}
 		}
 		else if ((payload[0] == 'H') && (payload[1] == 'K')) {
@@ -773,7 +783,7 @@ std::vector< std::vector<uint8_t> > SatUI::MyForm::transferOutPacketsConstructio
 bool SatUI::MyForm::cancelIncomingTransfer(uint16_t tID) {
 	if (this->backgroundWorker_UplinkPartRequest->IsBusy) {
 		backgroundWorker_UplinkPartRequest->CancelAsync();
-		System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_DownlinkPartRequest to stop
+		System::Threading::Thread::CurrentThread->Sleep(100); //Stall for backgroundWorker_DownlinkPartRequest to stop
 	}
 	if (CommsNaSPUoN::incomingTransfers.count(tID)) {
 		CommsNaSPUoN::incomingTransfers.erase(tID);
@@ -790,7 +800,7 @@ bool SatUI::MyForm::cancelOutgoingTransfer(uint16_t tID) {
 	if (backgroundWorker_Downlink->count(tID)) {
 		if (backgroundWorker_Downlink[tID]->IsBusy) {
 			backgroundWorker_Downlink[tID]->CancelAsync();
-			System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Downlink to stop
+			System::Threading::Thread::CurrentThread->Sleep(100); //Stall for backgroundWorker_Downlink to stop
 		}
 		backgroundWorker_Downlink->erase(tID);
 	}
@@ -816,23 +826,23 @@ void SatUI::MyForm::cancelAllTransfers(std::vector<uint8_t> AX25GSCallsignSSID) 
 	payload.push_back('Z');
 	payload.push_back(0xFF);
 	try {
-		for (cliext::map<uint16_t, System::ComponentModel::BackgroundWorker^>::iterator it = backgroundWorker_Downlink->begin(); it != backgroundWorker_Downlink->end(); it++) {
+		for (cliext::map<uint16_t, System::ComponentModel::BackgroundWorker^>::iterator it = backgroundWorker_Downlink->begin(); it != backgroundWorker_Downlink->end();) {
 			if (it->second->IsBusy) {
 				it->second->CancelAsync();
-				System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_Downlink to stop
+				System::Threading::Thread::CurrentThread->Sleep(100); //Stall for backgroundWorker_Downlink to stop
 				transferForms[it->first]->Close();
 			}
-			backgroundWorker_Downlink->erase(it);
+			it = backgroundWorker_Downlink->erase(it);
 		}
 		if (this->backgroundWorker_UplinkPartRequest->IsBusy) {
 			backgroundWorker_UplinkPartRequest->CancelAsync();
-			System::Threading::Thread::CurrentThread->Sleep(50); //Stall for backgroundWorker_DownlinkPartRequest to stop
+			System::Threading::Thread::CurrentThread->Sleep(100); //Stall for backgroundWorker_DownlinkPartRequest to stop
 		}
-		for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::incomingTransfers.begin(); it != CommsNaSPUoN::incomingTransfers.end(); it++) {
-			CommsNaSPUoN::incomingTransfers.erase(it);
+		for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::incomingTransfers.begin(); it != CommsNaSPUoN::incomingTransfers.end();) {
+			it = CommsNaSPUoN::incomingTransfers.erase(it);
 		}
-		for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::outgoingTransfers.begin(); it != CommsNaSPUoN::outgoingTransfers.end(); it++) {
-			CommsNaSPUoN::outgoingTransfers.erase(it);
+		for (std::map<uint16_t, FileTransfer>::iterator it = CommsNaSPUoN::outgoingTransfers.begin(); it != CommsNaSPUoN::outgoingTransfers.end();) {
+			it = CommsNaSPUoN::outgoingTransfers.erase(it);
 		}
 		payload.push_back(0x00);
 		sendRFPacket(AX25GSCallsignSSID, payload);
@@ -844,8 +854,8 @@ void SatUI::MyForm::cancelAllTransfers(std::vector<uint8_t> AX25GSCallsignSSID) 
 		log("CommHndl -> An error occurred when attempting to delete all incomplete transfers.");
 	}
 
-	for (cliext::map<uint16_t, DownlinkTransfer^>::iterator it = transferForms->begin(); it != transferForms->end(); it++) {
-		transferForms->erase(it);
+	for (cliext::map<uint16_t, DownlinkTransfer^>::iterator it = transferForms->begin(); it != transferForms->end();) {
+		it = transferForms->erase(it);
 	}
 	adjuplinkComplete(false);
 }

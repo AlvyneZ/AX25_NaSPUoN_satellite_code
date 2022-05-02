@@ -53,6 +53,10 @@ void SatUI::MyForm::log(std::string message) {
 		if (backgroundWorker_Receiver->IsBusy)
 			this->backgroundWorker_Receiver->ReportProgress(1, messageSys);
 	}
+	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->resenderThreadID) {
+		if (backgroundWorker_Resender->IsBusy)
+			this->backgroundWorker_Resender->ReportProgress(1, messageSys);
+	}
 	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UplinkPtRqThreadID) {
 		if (backgroundWorker_UplinkPartRequest->IsBusy)
 			this->backgroundWorker_UplinkPartRequest->ReportProgress(1, messageSys);
@@ -61,7 +65,7 @@ void SatUI::MyForm::log(std::string message) {
 		int thread = System::Threading::Thread::CurrentThread->ManagedThreadId;
 		for (cliext::map<uint16_t, int>::iterator it = DownlinkThreadID->begin(); it != DownlinkThreadID->end(); it++) {
 			if (thread == it->second) {
-				if (backgroundWorker_Downlink[it->first]->IsBusy)
+				if ((backgroundWorker_Downlink->count(it->first)) && (backgroundWorker_Downlink[it->first]->IsBusy))
 					return this->backgroundWorker_Downlink[it->first]->ReportProgress(1, messageSys);
 			}
 		}
@@ -79,6 +83,10 @@ void SatUI::MyForm::logErr(std::string message) {
 		if (backgroundWorker_Receiver->IsBusy)
 			this->backgroundWorker_Receiver->ReportProgress(2, messageSys);
 	}
+	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->resenderThreadID) {
+		if (backgroundWorker_Resender->IsBusy)
+			this->backgroundWorker_Resender->ReportProgress(2, messageSys);
+	}
 	else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UplinkPtRqThreadID) {
 		if (backgroundWorker_UplinkPartRequest->IsBusy)
 			this->backgroundWorker_UplinkPartRequest->ReportProgress(2, messageSys);
@@ -87,7 +95,7 @@ void SatUI::MyForm::logErr(std::string message) {
 		int thread = System::Threading::Thread::CurrentThread->ManagedThreadId;
 		for (cliext::map<uint16_t, int>::iterator it = DownlinkThreadID->begin(); it != DownlinkThreadID->end(); it++) {
 			if (thread == it->second) {
-				if (backgroundWorker_Downlink[it->first]->IsBusy)
+				if ((backgroundWorker_Downlink->count(it->first)) && (backgroundWorker_Downlink[it->first]->IsBusy))
 					return this->backgroundWorker_Downlink[it->first]->ReportProgress(2, messageSys);
 			}
 		}
@@ -98,7 +106,11 @@ void SatUI::MyForm::logFileSave() {
 	if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->UIThreadID) {
 		System::String^ logs = this->richTextBox_output->Text;
 		std::string stdLogs = msclr::interop::marshal_as<std::string>(logs);
-		std::vector<uint8_t> file(stdLogs.begin() + LOGGER::savedSize, stdLogs.end());
+		int offset = 0;
+		if (LOGGER::savedSize < stdLogs.size())
+			offset = LOGGER::savedSize;
+		std::vector<uint8_t> file(stdLogs.begin() + offset, stdLogs.end());
+		log("Size of file to save: " + std::to_string(file.size()) + " And textBox size: " + std::to_string(stdLogs.length()) );
 
 		std::string fileNameWithPath = getDownlinkSatFilesLocation() + "\\lf\\" + LOG_FILE_PREFIX;
 		fileNameWithPath += generateTimestamp() + ".txt";

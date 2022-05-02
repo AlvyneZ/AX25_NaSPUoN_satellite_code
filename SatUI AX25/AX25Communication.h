@@ -38,6 +38,7 @@ namespace KISS {
 	bool awaitTNC = false;
 
 	std::map<uint64_t, std::vector<uint8_t> > HPAX25AwaitingACK;
+	std::map<uint64_t, uint64_t > HPAX25Received;
 }
 
 
@@ -109,6 +110,7 @@ std::vector<std::vector<uint8_t>> SatUI::MyForm::kissCombineFrame(std::vector<ui
 */
 void SatUI::MyForm::kissDecapsulate(std::vector<uint8_t> & receivedFrame) {
 	//If the reseived packet is from the wrong TNCPort, drop it
+	//if ((receivedFrame[0] & 0x0F) == KISS_TYPE_DATA) log("Rcvd: "+vectorToHexString(receivedFrame));
 	if ((receivedFrame[0] & 0xF0) != this->TNCPort)
 		return;
 	uint8_t kissPacketType = receivedFrame[0] & 0x0F;
@@ -201,7 +203,7 @@ void SatUI::MyForm::kissTranspose(std::vector<uint8_t> & outgoingMsg) {
 #define APRS_MORSE_DATA_IND	'm'
 
 #define AX25_RESEND_LIMIT 10
-#define AX25_RESEND_INTERVAL_MILLI	1000
+#define AX25_RESEND_INTERVAL_MILLI	2500
 
 std::vector<uint8_t> SatUI::MyForm::ax25Decapsulate(std::vector<uint8_t> & kissdecappedMsg) {
 	std::vector<uint8_t> ret;
@@ -307,16 +309,18 @@ void SatUI::MyForm::checkKissTNCBufferSize() {
 
 
 void SatUI::MyForm::sendAX25Frames() {
-	System::Threading::Thread::CurrentThread->Sleep(100);
-
 	//Adding High Priority Packets that are meant to be resent to the Out Buffer
 	msclr::lock lck0(HPAX25Mutex);
-	for (std::map<uint64_t, std::vector<uint8_t>>::iterator it = KISS::HPAX25AwaitingACK.begin(); it != KISS::HPAX25AwaitingACK.end(); it++) {
+	for (std::map<uint64_t, std::vector<uint8_t>>::iterator it = KISS::HPAX25AwaitingACK.begin(); it != KISS::HPAX25AwaitingACK.end();) {
 		std::vector<uint8_t> AX25GSCallsignSSID((it->second).begin(), (it->second).begin() + 8);
+		for (int i = AX25GSCallsignSSID.size() - 1; i > 0; i--) {
+			if (AX25GSCallsignSSID[i] == ';') AX25GSCallsignSSID.erase(AX25GSCallsignSSID.begin() + i);
+			else break;
+		}
 		std::vector<uint8_t> packet((it->second).begin() + 8, (it->second).end());
 		uint8_t resendCount = packet[3];
 		if (resendCount >= AX25_RESEND_LIMIT) {
-			KISS::HPAX25AwaitingACK.erase(it);
+			it = KISS::HPAX25AwaitingACK.erase(it);
 		}
 		else {
 			uint64_t currentTimeStamp = timeSinceEpochMillisec();
@@ -325,7 +329,18 @@ void SatUI::MyForm::sendAX25Frames() {
 			if (currentTimeStamp > nextResendTimeStamp) {
 				packet[3] ++;
 				sendRFPacketAX25(AX25GSCallsignSSID, packet);
+				(it->second)[11] ++;
 			}
+			it++;
+		}
+	}
+	uint64_t currentTimeStamp = timeSinceEpochMillisec();
+	for (std::map<uint64_t, uint64_t>::iterator it = KISS::HPAX25Received.begin(); it != KISS::HPAX25Received.end();) {
+		if (currentTimeStamp > (it->second)) {
+			it = KISS::HPAX25Received.erase(it);
+		}
+		else {
+			it++;
 		}
 	}
 	lck0.release();
@@ -373,18 +388,20 @@ bool SatUI::MyForm::isOutAX25PacketHP(std::vector<uint8_t> & frameToSend) {
 void SatUI::MyForm::HPAX25PacketEncapsulate(std::vector<uint8_t> AX25GSCallsignSSID, std::vector<uint8_t> & frameToSend) {
 	if (isOutAX25PacketHP(frameToSend)) {
 		uint64_t HPID = timeSinceEpochMillisec();
-		insertSixtyFourBitIntInEightBitVector(frameToSend, frameToSend.begin(), HPID);
-		frameToSend.insert(frameToSend.begin(), 0x00);
+		insertSixtyFourBitIntInEightBitVector(frameToSend, frameToSend.begin(), HPID);	//Index 4,5,6,..,10,11 -> HPID
+		frameToSend.insert(frameToSend.begin(), 0x00);		//Index 3 -> resend_count
 		frameToSend.insert(frameToSend.begin(), 'D');
 		frameToSend.insert(frameToSend.begin(), 'P');
-		frameToSend.insert(frameToSend.begin(), 'H');
+		frameToSend.insert(frameToSend.begin(), 'H');		//Index 0,1,2 -> "HPD"
 
 		std::vector<uint8_t> frameToSave(frameToSend.begin(), frameToSend.end());
 		for (int i = AX25GSCallsignSSID.size(); i < 8; i++)
 			AX25GSCallsignSSID.push_back(';');
 		frameToSave.insert(frameToSave.begin(), AX25GSCallsignSSID.begin(), AX25GSCallsignSSID.end());
 		
+		msclr::lock lck(this->HPAX25Mutex);
 		KISS::HPAX25AwaitingACK.insert(std::make_pair(HPID, frameToSave));
+		lck.release();
 	}
 
 	//If the packet is not a high priority packet, do nothing
@@ -414,6 +431,20 @@ void SatUI::MyForm::HPAX25PacketDecapsulate(std::vector<uint8_t> AX25GSCallsignS
 			ack[2] = 'A';
 			ack.erase(ack.begin() + 3);
 			sendRFPacketAX25(AX25GSCallsignSSID, ack);
+
+			//Extracting the High Priority packet ID
+			uint64_t HPID = getSixtyFourBitIntFromEightBitVector(receivedFrame, 4);
+			msclr::lock lck(this->HPAX25Mutex);
+			if (KISS::HPAX25Received.count(HPID)) {
+				receivedFrame.clear();
+				return;
+			}
+			else {
+				uint64_t maxTime = ((AX25_RESEND_LIMIT + 5) * (AX25_RESEND_INTERVAL_MILLI)) + HPID;
+				KISS::HPAX25Received.insert(std::make_pair(HPID, maxTime));
+			}
+			lck.release();
+
 			receivedFrame.erase(receivedFrame.begin(), receivedFrame.begin() + 12);
 		}
 		else
