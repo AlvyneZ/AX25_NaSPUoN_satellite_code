@@ -117,25 +117,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="label4.Text" xml:space="preserve">
-    <value>Staff Team:
-    Principal Investigator: Prof. Eng. Mwangi Mbuthia
-    Project Manager: Dr. Mutugi Kiruki
-    Staff: Ms. Betsy Mugo
-Student Team:
-  Department of Electrical &amp; Information Engineering
-    June Akinyi – Graduate
-    Alvyne Mwaniki – 5th year
-    Alex Gichamba – 4th year
-  Department of Mechanical &amp; Manufacturing Engineering
-    Chand Hirani - 5th year
-    Duncan Kariuki – 5th year
-    Sonny Munene – 5th year
-  Department of Geospatial &amp; Space Technology
-    Christine Nyakinyua – 5th year, 
-    Brian Musyoki – 4th year
-    Veronica Akinyi – 5th year</value>
-  </data>
   <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
   <data name="$this.Icon" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
     <value>
@@ -1662,5 +1643,24 @@ Student Team:
         4AD//////////wAD///////////gAP//////////AAP//////////+AA//////////8AA///////////
         4AA=
 </value>
+  </data>
+  <data name="label4.Text" xml:space="preserve">
+    <value>Staff Team:
+    Principal Investigator: Prof. Eng. Mwangi Mbuthia
+    Project Manager: Dr. Mutugi Kiruki
+    Staff: Ms. Betsy Mugo
+Student Team:
+  Department of Electrical &amp; Information Engineering
+    June Akinyi – Graduate
+    Alvyne Mwaniki – 5th year
+    Alex Gichamba – 4th year
+  Department of Mechanical &amp; Manufacturing Engineering
+    Chand Hirani - 5th year
+    Duncan Kariuki – 5th year
+    Sonny Munene – 5th year
+  Department of Geospatial &amp; Space Technology
+    Christine Nyakinyua – 5th year, 
+    Brian Musyoki – 4th year
+    Veronica Akinyi – 5th year</value>
   </data>
 </root>

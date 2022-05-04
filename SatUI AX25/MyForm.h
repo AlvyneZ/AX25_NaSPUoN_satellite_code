@@ -1013,8 +1013,8 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 					if (backgroundWorker_Downlink->count(tID)) {
 						//If the backgroundWorker already exists
 						if (!(this->backgroundWorker_Downlink[tID]->IsBusy)) {
-							this->backgroundWorker_Downlink[tID]->RunWorkerAsync(args);
 							downlinkStarting(tID);
+							this->backgroundWorker_Downlink[tID]->RunWorkerAsync(args);
 						}
 					}
 					else {
@@ -1029,8 +1029,8 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 						this->backgroundWorker_Downlink[tID]->ProgressChanged += gcnew System::ComponentModel::ProgressChangedEventHandler(this, &MyForm::backgroundWorker_Downlink_ProgressChanged);
 						this->backgroundWorker_Downlink[tID]->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MyForm::backgroundWorker_Downlink_RunWorkerCompleted);
 						//Starting the new backgroundworker
-						this->backgroundWorker_Downlink[tID]->RunWorkerAsync(args);
 						downlinkStarting(tID);
+						this->backgroundWorker_Downlink[tID]->RunWorkerAsync(args);
 					}
 				}
 				else if (System::Threading::Thread::CurrentThread->ManagedThreadId == this->receiverThreadID) {
@@ -1208,7 +1208,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 			//To update the downlink buttons.
 			private:  void downlinkStarting(uint16_t tID) {
 				//This part is necessary for automatic downlinks (started by the satellite)
-				System::String ^ fileToDownlink;
+				System::String ^ fileToDownlink = "?";
 				if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
 					fileToDownlink = gcnew System::String(CommsNaSPUoN::outgoingTransfers[tID].fileName.c_str());
 				}
@@ -1275,8 +1275,8 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 
 System::Void DownlinkTransfer::DownlinkTransfer_FormClosing(System::Object^  sender, System::Windows::Forms::FormClosingEventArgs^  e) {
 	uint16_t tID = this->transferID;
-	if (CommsNaSPUoN::incomingTransfers.count(tID)) {
-		std::vector<uint8_t> payload;
+	if (CommsNaSPUoN::outgoingTransfers.count(tID)) {
+		/*std::vector<uint8_t> payload;
 		payload.push_back('T');
 		payload.push_back('Z');
 		payload.push_back(0x00); //Delete specific transfer
@@ -1291,7 +1291,7 @@ System::Void DownlinkTransfer::DownlinkTransfer_FormClosing(System::Object^  sen
 		form->sendRFPacket(callsignSSID, payload);
 
 		System::Threading::Thread::CurrentThread->Sleep(100); //Stalling to make sure the satellite is no longer sending data
-
+		*/
 		form->cancelIncomingTransfer(this->transferID);
 	}
 

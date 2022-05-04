@@ -468,6 +468,11 @@ void SatUI::MyForm::processIncomingPayload(std::vector<uint8_t> AX25GSCallsignSS
 					}
 				}
 				else if ((payload[4] == 0x00) && (CommsNaSPUoN::outgoingTransfers.count(tID))) {
+					if ((backgroundWorker_Downlink->count(tID)) && (backgroundWorker_Downlink[tID]->IsBusy)) {
+						backgroundWorker_Downlink[tID]->CancelAsync();
+						//Stalling to allow the thread to stop
+						System::Threading::Thread::CurrentThread->Sleep(100);
+					}
 					CommsNaSPUoN::outgoingTransfers.erase(tID);
 					adjdownlinkComplete(tID);
 					log("CommHndl -> Successfully Completed outgoing transfer of tID " + std::to_string(tID) + ".");
