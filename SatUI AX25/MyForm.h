@@ -567,7 +567,7 @@ private: System::Windows::Forms::Label^  label_incomingUplink;
 			this->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"$this.Icon")));
 			this->Margin = System::Windows::Forms::Padding(4);
 			this->Name = L"MyForm";
-			this->Text = L"NaSPUoN Ground Station Software";
+			this->Text = L"NaSPUoN Satellite Simulation Software";
 			this->groupBox_Initialization->ResumeLayout(false);
 			this->groupBox_Initialization->PerformLayout();
 			this->ResumeLayout(false);

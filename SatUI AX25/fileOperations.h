@@ -15,7 +15,7 @@
 #include <fstream>
 #include <string>
 
-#define MAX_PACKET_SIZE		100 //Bytes
+#define MAX_PACKET_SIZE		500 //Bytes
 #define PACKET_HEADER_SIZE	24 //Bytes
 
 

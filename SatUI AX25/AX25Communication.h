@@ -28,8 +28,8 @@ uint64_t timeSinceEpochMillisec() {
 #define KISS_TYPE_DATA 0x00
 #define KISS_TYPE_CMD  0x06
 
-#define KISS_TNC_BUFFER_LIMIT 16384
-#define KISS_OUT_BUFFER_LIMIT 100
+#define KISS_TNC_BUFFER_LIMIT 1024
+#define KISS_OUT_BUFFER_LIMIT 5
 
 namespace KISS {
 	std::vector<uint8_t> kissInBuffer;
@@ -328,7 +328,21 @@ void SatUI::MyForm::sendAX25Frames() {
 			nextResendTimeStamp += getSixtyFourBitIntFromEightBitVector(packet, 4);
 			if (currentTimeStamp > nextResendTimeStamp) {
 				packet[3] ++;
-				sendRFPacketAX25(AX25GSCallsignSSID, packet);
+
+				//Checking if the original packet is still in the buffer (don't add in that case)
+				bool inBuffer = false;
+				for (unsigned int i = 0; ((!inBuffer) && (i < KISS::kissOutBuffer.size())); i++) {
+					bool match = true;
+					if (KISS::kissOutBuffer[i].size() < 12)
+						continue;
+					for (unsigned int j = 0; (match && (j < 12)); j++) {
+						match = (j == 3) || (KISS::kissOutBuffer[i][j] == packet[j]);
+					}
+					inBuffer = match;
+				}
+				if (!inBuffer)
+					sendRFPacketAX25(AX25GSCallsignSSID, packet);
+
 				(it->second)[11] ++;
 			}
 			it++;
@@ -440,7 +454,7 @@ void SatUI::MyForm::HPAX25PacketDecapsulate(std::vector<uint8_t> AX25GSCallsignS
 				return;
 			}
 			else {
-				uint64_t maxTime = ((AX25_RESEND_LIMIT + 5) * (AX25_RESEND_INTERVAL_MILLI)) + HPID;
+				uint64_t maxTime = ((AX25_RESEND_LIMIT * 5) * (AX25_RESEND_INTERVAL_MILLI)) + HPID;
 				KISS::HPAX25Received.insert(std::make_pair(HPID, maxTime));
 			}
 			lck.release();

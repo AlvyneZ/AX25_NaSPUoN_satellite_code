@@ -27,14 +27,43 @@ std::string generateTimestamp() {
 	time_t *timeNow = &now;
 	tm *localTime = localtime(timeNow);
 	std::string stamp = "";
+	switch (localTime->tm_wday) {
+	case 1: stamp += "Mon"; break;
+	case 2: stamp += "Tue"; break;
+	case 3: stamp += "Wed"; break;
+	case 4: stamp += "Thu"; break;
+	case 5: stamp += "Fri"; break;
+	case 6: stamp += "Sat"; break;
+	default: stamp += "Sun";
+	}
+	stamp += "-";
+	stamp += std::to_string(localTime->tm_mday);
+	stamp += "-";
+	switch (localTime->tm_mon) {
+	case 1: stamp += "Feb"; break;
+	case 2: stamp += "March"; break;
+	case 3: stamp += "Apr"; break;
+	case 4: stamp += "May"; break;
+	case 5: stamp += "June"; break;
+	case 6: stamp += "July"; break;
+	case 7: stamp += "Aug"; break;
+	case 8: stamp += "Sep"; break;
+	case 9: stamp += "Oct"; break;
+	case 10: stamp += "Nov"; break;
+	case 11: stamp += "Dec"; break;
+	default: stamp += "Jan";
+	}
+	stamp += "-";
+	stamp += std::to_string(localTime->tm_year + 1900);
+	stamp += "@";
 	if ((localTime->tm_hour) < 10)
 		stamp += std::to_string(0);
 	stamp += std::to_string(localTime->tm_hour);
-	stamp += ":";
+	stamp += ";";
 	if ((localTime->tm_min) < 10)
 		stamp += std::to_string(0);
 	stamp += std::to_string(localTime->tm_min);
-	stamp += ":";
+	stamp += ";";
 	if ((localTime->tm_sec) < 10)
 		stamp += std::to_string(0);
 	stamp += std::to_string(localTime->tm_sec);
@@ -112,8 +141,13 @@ void SatUI::MyForm::logFileSave() {
 		std::vector<uint8_t> file(stdLogs.begin() + offset, stdLogs.end());
 		log("Size of file to save: " + std::to_string(file.size()) + " And textBox size: " + std::to_string(stdLogs.length()) );
 
+		std::string fileName = generateTimestamp() + ".txt";
+		for (int i = 0; i < fileName.size(); i++) {
+			if (fileName[i] == ':')
+				fileName[i] = ';';
+		}
 		std::string fileNameWithPath = getDownlinkSatFilesLocation() + "\\lf\\" + LOG_FILE_PREFIX;
-		fileNameWithPath += generateTimestamp() + ".txt";
+		fileNameWithPath += fileName;
 
 		if (checkIfFileExists(fileNameWithPath)) {
 			logErr("The file specified for output '" + fileNameWithPath + "' already exists.");
