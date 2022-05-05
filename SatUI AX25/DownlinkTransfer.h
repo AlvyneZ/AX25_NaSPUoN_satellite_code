@@ -86,7 +86,7 @@ namespace SatUI {
 			// textBox_transferID
 			// 
 			this->textBox_transferID->Location = System::Drawing::Point(104, 7);
-			this->textBox_transferID->Margin = System::Windows::Forms::Padding(4, 4, 4, 4);
+			this->textBox_transferID->Margin = System::Windows::Forms::Padding(4);
 			this->textBox_transferID->Name = L"textBox_transferID";
 			this->textBox_transferID->ReadOnly = true;
 			this->textBox_transferID->Size = System::Drawing::Size(647, 22);
@@ -106,7 +106,7 @@ namespace SatUI {
 			// textBox_filename
 			// 
 			this->textBox_filename->Location = System::Drawing::Point(104, 44);
-			this->textBox_filename->Margin = System::Windows::Forms::Padding(4, 4, 4, 4);
+			this->textBox_filename->Margin = System::Windows::Forms::Padding(4);
 			this->textBox_filename->Name = L"textBox_filename";
 			this->textBox_filename->ReadOnly = true;
 			this->textBox_filename->Size = System::Drawing::Size(647, 22);
@@ -115,7 +115,7 @@ namespace SatUI {
 			// progressBar_downlink
 			// 
 			this->progressBar_downlink->Location = System::Drawing::Point(20, 87);
-			this->progressBar_downlink->Margin = System::Windows::Forms::Padding(4, 4, 4, 4);
+			this->progressBar_downlink->Margin = System::Windows::Forms::Padding(4);
 			this->progressBar_downlink->Name = L"progressBar_downlink";
 			this->progressBar_downlink->Size = System::Drawing::Size(732, 28);
 			this->progressBar_downlink->TabIndex = 4;
@@ -126,7 +126,7 @@ namespace SatUI {
 				static_cast<System::Int32>(static_cast<System::Byte>(128)), static_cast<System::Int32>(static_cast<System::Byte>(128)));
 			this->button_downlinkCancel->Enabled = false;
 			this->button_downlinkCancel->Location = System::Drawing::Point(317, 128);
-			this->button_downlinkCancel->Margin = System::Windows::Forms::Padding(4, 4, 4, 4);
+			this->button_downlinkCancel->Margin = System::Windows::Forms::Padding(4);
 			this->button_downlinkCancel->Name = L"button_downlinkCancel";
 			this->button_downlinkCancel->Size = System::Drawing::Size(100, 28);
 			this->button_downlinkCancel->TabIndex = 24;
@@ -148,9 +148,9 @@ namespace SatUI {
 			this->Controls->Add(this->textBox_transferID);
 			this->Controls->Add(this->label_transferID);
 			this->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"$this.Icon")));
-			this->Margin = System::Windows::Forms::Padding(4, 4, 4, 4);
+			this->Margin = System::Windows::Forms::Padding(4);
 			this->Name = L"DownlinkTransfer";
-			this->Text = L"DownlinkTransfer";
+			this->Text = L"Outgoing DownlinkTransfer";
 			this->FormClosing += gcnew System::Windows::Forms::FormClosingEventHandler(this, &DownlinkTransfer::DownlinkTransfer_FormClosing);
 			this->ResumeLayout(false);
 			this->PerformLayout();

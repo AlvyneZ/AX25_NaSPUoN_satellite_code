@@ -211,7 +211,7 @@ void SatUI::MyForm::kissTranspose(std::vector<uint8_t> & outgoingMsg) {
 #define APRS_MORSE_DATA_IND	'm'
 
 #define AX25_RESEND_LIMIT 10
-#define AX25_RESEND_INTERVAL_MILLI	2500
+#define AX25_RESEND_INTERVAL_MILLI	4000
 
 std::vector<uint8_t> SatUI::MyForm::ax25Decapsulate(std::vector<uint8_t> & kissdecappedMsg) {
 	std::vector<uint8_t> ret;
