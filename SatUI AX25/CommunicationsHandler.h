@@ -273,6 +273,14 @@ void SatUI::MyForm::downlinkTransfer(std::vector<uint8_t> AX25GSCallsignSSID, ui
 		adjdownlinkProgressBarUpdate(args);
 	}
 
+	while (KISS::kissOutBuffer.size() > 0) {
+		if (this->backgroundWorker_Downlink[tID]->CancellationPending) {
+			e->Cancel = true;
+			e->Result = tID;
+			return;
+		}
+	}
+
 	pck.clear();
 	pck.push_back('T');
 	pck.push_back('C');

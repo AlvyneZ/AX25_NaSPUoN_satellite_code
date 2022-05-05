@@ -28,8 +28,8 @@ uint64_t timeSinceEpochMillisec() {
 #define KISS_TYPE_DATA 0x00
 #define KISS_TYPE_CMD  0x06
 
-#define KISS_TNC_BUFFER_LIMIT 1024
-#define KISS_OUT_BUFFER_LIMIT 5
+#define KISS_TNC_BUFFER_LIMIT 10	//Bytes limit
+#define KISS_OUT_BUFFER_LIMIT 5		//Packets limit
 
 namespace KISS {
 	std::vector<uint8_t> kissInBuffer;
