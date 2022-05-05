@@ -29,13 +29,14 @@ uint64_t timeSinceEpochMillisec() {
 #define KISS_TYPE_CMD  0x06
 
 #define KISS_TNC_BUFFER_LIMIT 10	//Bytes limit
-#define KISS_OUT_BUFFER_LIMIT 5		//Packets limit
+#define KISS_OUT_BUFFER_LIMIT 2		//Packets limit
 
 namespace KISS {
 	std::vector<uint8_t> kissInBuffer;
 	std::vector< std::vector<uint8_t> > kissOutBuffer;
 	uint64_t kissTNCBufferSize;
 	bool awaitTNC = false;
+	bool emptyTNC = true;
 
 	std::map<uint64_t, std::vector<uint8_t> > HPAX25AwaitingACK;
 	std::map<uint64_t, uint64_t > HPAX25Received;
@@ -139,10 +140,17 @@ void SatUI::MyForm::kissDecapsulate(std::vector<uint8_t> & receivedFrame) {
 						KISS::kissTNCBufferSize += temp;
 					}
 				}
-				if (KISS::kissTNCBufferSize >= KISS_TNC_BUFFER_LIMIT)
-					KISS::awaitTNC = true;
-				else
+				if (KISS::kissTNCBufferSize == 0) {
+					KISS::emptyTNC = true;
 					KISS::awaitTNC = false;
+				}
+				else {
+					KISS::emptyTNC = false;
+					if (KISS::kissTNCBufferSize >= KISS_TNC_BUFFER_LIMIT)
+						KISS::awaitTNC = true;
+					else
+						KISS::awaitTNC = false;
+				}
 			}
 		}
 		break;
@@ -324,7 +332,7 @@ void SatUI::MyForm::sendAX25Frames() {
 		}
 		else {
 			uint64_t currentTimeStamp = timeSinceEpochMillisec();
-			uint64_t nextResendTimeStamp = ((1+resendCount) * AX25_RESEND_INTERVAL_MILLI);
+			uint64_t nextResendTimeStamp = ((uint64_t)(1+resendCount) * AX25_RESEND_INTERVAL_MILLI);
 			nextResendTimeStamp += getSixtyFourBitIntFromEightBitVector(packet, 4);
 			if (currentTimeStamp > nextResendTimeStamp) {
 				packet[3] ++;
@@ -332,13 +340,13 @@ void SatUI::MyForm::sendAX25Frames() {
 				//Checking if the original packet is still in the buffer (don't add in that case)
 				bool inBuffer = false;
 				for (unsigned int i = 0; ((!inBuffer) && (i < KISS::kissOutBuffer.size())); i++) {
-					bool match = true;
-					if (KISS::kissOutBuffer[i].size() < 12)
-						continue;
-					for (unsigned int j = 0; (match && (j < 12)); j++) {
-						match = (j == 3) || (KISS::kissOutBuffer[i][j] == packet[j]);
+					if (KISS::kissOutBuffer[i].size() >= 12) {
+						bool match = true;
+						for (unsigned int j = 0; (match && (j < 12)); j++) {
+							match = ((j == 3) || (KISS::kissOutBuffer[i][j] == packet[j]));
+						}
+						inBuffer = match;
 					}
-					inBuffer = match;
 				}
 				if (!inBuffer)
 					sendRFPacketAX25(AX25GSCallsignSSID, packet);

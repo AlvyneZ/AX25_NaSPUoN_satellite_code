@@ -273,7 +273,7 @@ void SatUI::MyForm::downlinkTransfer(std::vector<uint8_t> AX25GSCallsignSSID, ui
 		adjdownlinkProgressBarUpdate(args);
 	}
 
-	while (KISS::kissOutBuffer.size() > 0) {
+	while ((!KISS::emptyTNC) || (KISS::kissOutBuffer.size() > 0)) {
 		if (this->backgroundWorker_Downlink[tID]->CancellationPending) {
 			e->Cancel = true;
 			e->Result = tID;
@@ -311,7 +311,7 @@ void SatUI::MyForm::uplinkPartRequestTransfer(std::vector<uint8_t> AX25GSCallsig
 			insertThirtyTwoBitIntInEightBitVector(pck, pck.end(), i);
 			sendRFPacket(AX25GSCallsignSSID, pck);
 
-			while (KISS::awaitTNC || (KISS::kissOutBuffer.size() > KISS_OUT_BUFFER_LIMIT)) {
+			while ((!KISS::emptyTNC) || (KISS::kissOutBuffer.size() > 0)) {
 				if (this->backgroundWorker_UplinkPartRequest->CancellationPending) {
 					e->Cancel = true;
 					return;
@@ -319,6 +319,14 @@ void SatUI::MyForm::uplinkPartRequestTransfer(std::vector<uint8_t> AX25GSCallsig
 			}
 		}
 	}
+
+	while ((!KISS::emptyTNC) || (KISS::kissOutBuffer.size() > 0)) {
+		if (this->backgroundWorker_UplinkPartRequest->CancellationPending) {
+			e->Cancel = true;
+			return;
+		}
+	}
+
 	pck.clear();
 	pck.push_back('T');
 	pck.push_back('C');
