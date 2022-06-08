@@ -112,7 +112,7 @@ std::vector<std::vector<uint8_t>> SatUI::MyForm::kissCombineFrame(std::vector<ui
 void SatUI::MyForm::kissDecapsulate(std::vector<uint8_t> & receivedFrame) {
 	//If the reseived packet is from the wrong TNCPort, drop it
 	//if ((receivedFrame[0] & 0x0F) == KISS_TYPE_DATA) log("Rcvd: "+vectorToHexString(receivedFrame));
-	if ((receivedFrame[0] & 0xF0) != this->TNCPort)
+	if ((receivedFrame[0] & 0xF0) != this->TNCPortUplink)
 		return;
 	uint8_t kissPacketType = receivedFrame[0] & 0x0F;
 	receivedFrame.erase(receivedFrame.begin());
@@ -164,10 +164,10 @@ void SatUI::MyForm::kissDecapsulate(std::vector<uint8_t> & receivedFrame) {
 */
 void SatUI::MyForm::kissEncapsulate(bool command, std::vector<uint8_t> & outgoingMsg) {
 	if (command) {
-		outgoingMsg.insert(outgoingMsg.begin(), (this->TNCPort | KISS_TYPE_CMD));
+		outgoingMsg.insert(outgoingMsg.begin(), (this->TNCPortDownlink | KISS_TYPE_CMD));
 	}
 	else {
-		outgoingMsg.insert(outgoingMsg.begin(), (this->TNCPort | KISS_TYPE_DATA));
+		outgoingMsg.insert(outgoingMsg.begin(), (this->TNCPortDownlink | KISS_TYPE_DATA));
 	}
 	kissTranspose(outgoingMsg);
 	outgoingMsg.insert(outgoingMsg.begin(), KISS_FEND);
